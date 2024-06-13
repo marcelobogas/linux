@@ -1,12 +1,7 @@
 #!/usr/bin/bash
 
 ##*** instalação da interface NALA para o terminal
-echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
-wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg > /dev/null
-sudo apt update 
-
-sudo apt install nala -y &&
-sudo nala fetch
+sudo apt install nala -y 
 
 ##** Download da Fonte FiraCode Nerd Font
 mkdir -m755 ~/.fonts &&
@@ -27,7 +22,6 @@ git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-~
 
 ##** alterar o tema do ZSH
 #sudo nano ~/.zshrc
-
 ##altere a linha ZSH_THEME="rubbyrussel"'
 ##ZSH_THEME="powerlevel10k/powerlevel10k"
 
@@ -43,7 +37,16 @@ sudo nala install gnome-tweaks gnome-shell-extension-manager ca-certificates ubu
 
 sudo nala install snapd gparted preload vsftpd filezilla neofetch vlc gimp redis supervisor lsb-release gnupg2 apt-transport-https software-properties-common -y
 
-sudo nala install numlockx net-tools vim gdebi git curl apache2 tree gnupg dirmngr -y
+sudo nala install numlockx net-tools vim gdebi git curl apache2 tree gnupg dirmngr gcc g++ make -y
+
+# flatpak installation
+sudo nala install flatpak -y
+
+#enable flathub repository
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+# flatseal installation
+flatpak install flathub com.github.tchx84.Flatseal
 
 ##*** Instalar o Chrome ***
 sudo apt update && sudo apt upgrade &&
@@ -81,24 +84,27 @@ composer install &&
 cd ~
 
 ##---Setar variável de ambiente do composer global---
-echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc && 
+# echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc && 
+# source ~/.bashrc
 echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.zshrc && 
-source ~/.bashrc && source ~/.zshrc
+source ~/.zshrc
 
 ##--- Atualizar versão do composer ---
 #Executar esse comando dentro do diretório /home/$USER/.config/composer
 #composer self-update
 
 ##*** Instalar o nodejs e o npm
-#sudo curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# installs nvm (Node Version Manager)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 
-sudo mkdir -p /etc/apt/keyrings && 
-curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+# download and install Node.js (you may need to restart the terminal)
+nvm install 22
 
-NODE_MAJOR=20 && 
-echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+# verifies the right Node.js version is in the environment
+node -v 
 
-sudo nala install gcc g++ make -y && sudo nala install nodejs npm -y
+# verifies the right NPM version is in the environment
+npm -v 
 
 ##*** Instalação do VUE-JS ***
 sudo npm install -g @vue/cli
@@ -119,8 +125,6 @@ echo 'local_root=/home/$USER/ftp/public' | sudo tee -a /etc/vsftpd.conf &&
 sudo systemctl restart vsftpd
 
 ##*** Instalar PostgreSQL ***
-sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && 
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add - && 
 sudo nala update && sudo nala install postgresql -y
 
 ##*** Acessar pelo terminal
@@ -130,9 +134,9 @@ sudo nala update && sudo nala install postgresql -y
 #ALTER USER postgres WITH PASSWORD 'postgres';
 
 ##** Instalar o PgAdmin4
-sudo curl https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo apt-key add &&
-sudo sh -c 'echo "deb https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/jammy pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list && apt update' && 
-sudo nala install pgadmin4 -y
+curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
+sudo nala update && sudo nala install pgadmin4 -y
 
 ##*** Habilitar o firewall na inicialização do sistema ***
 sudo nala install gufw -y &&
@@ -172,6 +176,11 @@ sudo nala install mysql-server mysql-client -y
 ##** instalação do phpmyadmin
 sudo nala install phpmyadmin -y
 
+##** acesso root
+# sudo vim /etc/phpmyadmin/config.inc.php
+# descomentar a linha (100)
+# $cfg['Servers'][$i]['AllowNoPassword'] = TRUE;
+
 ##** montar partições NTFS no linux
 sudo mkdir -m775 /media/arquivos -p &&
 sudo chown -R $USER: /media/arquivos/ &&
@@ -182,38 +191,27 @@ sudo wget https://launchpadlibrarian.net/570407966/grub-customizer_5.1.0-3build1
 sudo gdebi grub-customizer*
 
 ##*** Instalar o BOOT REPAIR ***
-sudo add-apt-repository ppa:yannubuntu/boot-repair -y && 
-sudo nala update && 
+sudo add-apt-repository ppa:yannubuntu/boot-repair && sudo nala update
 sudo nala install boot-repair -y
 
-##*** Instalação do MinIO
-wget https://dl.min.io/server/minio/release/linux-amd64/minio &&
-sudo chmod +x minio &&
-sudo mv minio /usr/local/bin &&
-sudo useradd -r minio-user -s /sbin/nologin &&
-sudo chown minio-user:minio-user /usr/local/bin/minio &&
-sudo mkdir /usr/local/share/minio &&
-sudo chown minio-user:minio-user /usr/local/share/minio &&
-sudo mkdir /etc/minio &&
-sudo chown -R minio-user:minio-user /etc/minio
+##*** Instalação do MinIO-Server
+wget https://dl.min.io/server/minio/release/linux-amd64/minio_20240611031330.0.0_amd64.deb && 
+dpkg -i minio_20240611031330.0.0_amd64.deb && 
+sudo groupadd -r minio-user &&
+sudo useradd -M -r -g minio-user minio-user && 
+sudo mkdir /usr/local/share/minio && 
+sudo chown minio-user:minio-user /usr/local/share/minio
 
 #sudo nano /etc/default/minio
 echo 'MINIO_VOLUMES="/usr/local/share/minio/"' | sudo tee -a /etc/default/minio
-echo 'MINIO_OPTS="127.0.0.1:9000"' | sudo tee -a /etc/default/minio
-echo 'MINIO_ACCESS_KEY="admin"' | sudo tee -a /etc/default/minio
-echo 'MINIO_SECRET_KEY="admin"' | sudo tee -a /etc/default/minio
+echo 'MINIO_OPTS="-C /etc/minio --address 127.0.0.1:9000"' | sudo tee -a /etc/default/minio
+echo 'MINIO_ACCESS_KEY="minioadmin"' | sudo tee -a /etc/default/minio
+echo 'MINIO_SECRET_KEY="minioadmin"' | sudo tee -a /etc/default/minio
 
-curl -O https://raw.githubusercontent.com/minio/minio-service/master/linux-systemd/minio.service
-
-# nano minio.service
-sudo mv minio.service /etc/systemd/system
-
-sudo ufw enable && 
 sudo ufw allow 9000/tcp
-
 sudo systemctl daemon-reload
-sudo systemctl enable minio
 sudo systemctl start minio
+sudo systemctl enable minio
 
 ##*** Instalação do Docker
 sudo nala update &&
@@ -224,26 +222,14 @@ echo   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docke
 sudo nala update &&
 sudo nala install docker-ce docker-ce-cli containerd.io docker-compose-plugin -y && 
 sudo groupadd docker && 
-sudo usermod -aG docker $USER && newgrp docker
+sudo usermod -aG docker $USER && 
+newgrp docker
 
-##** Instalação de DRIVERS SQL-SERVER para o PHP
-sudo curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && 
-sudo curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > sudo tee -a /etc/apt/sources.list.d/mssql-release.list
+sudo chown "$USER":"$USER" /home/"$USER"/.docker -R
+sudo chmod g+rwx "$HOME/.docker" -R
 
-sudo apt-get update
-sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
-# optional: for bcp and sqlcmd
-sudo ACCEPT_EULA=Y apt-get install -y mssql-tools
-echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
-source ~/.bashrc
-# optional: for unixODBC development headers
-sudo apt install -y unixodbc-dev && 
-sudo pecl install sqlsrv && sudo pecl install pdo_sqlsrv
-
-echo "; priority=20\nextension=sqlsrv.so\n" | sudo tee -a /etc/php/8.2/mods-available/sqlsrv.ini && 
-echo "; priority=30\nextension=pdo_sqlsrv.so\n" | sudo tee -a /etc/php/8.2/mods-available/pdo_sqlsrv.ini
-
-sudo phpenmod sqlsrv pdo_sqlsrv && sudo systemctl restart apache2
+sudo systemctl enable docker.service
+sudo systemctl enable containerd.service
 
 sudo touch /var/www/html/phpinfo.php && 
 echo "<?php phpinfo(); ?>" | sudo tee -a /var/www/html/phpinfo.php

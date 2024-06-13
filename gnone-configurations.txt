@@ -61,4 +61,3 @@ dconf load /org/gnome/mutter/ < org.gnome.mutter.dconf
 sudo apt install conky-all jq -y
 unzip ~/Downloads/conky-config.zip -d ~/Downloads/
 rsync -av ~/Downloads/conky-config/.config ~
-
