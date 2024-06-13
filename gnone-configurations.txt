@@ -1,0 +1,64 @@
+# Download resources
+https://www.pling.com/p/2107056/
+
+#backup gnone-configurations
+dconf dump / > GNOME-Default-Settings.dconf && mv ~/GNOME-Default-Settings.dconf ~/Documents
+
+sudo apt install git curl rsync gnome-tweak-tool gnome-extensions-app -y
+
+#theme configuration
+mkdir ~/.themes
+unzip ~/Downloads/Everforest-GTK-Theme.zip -d ~/.themes
+ls -la ~/.themes
+ln -s ~/.themes/Everforest-Dark-BL-MOD/gtk-4.0/assets ~/.config/gtk-4.0
+ln -s ~/.themes/Everforest-Dark-BL-MOD/gtk-4.0/gtk.css ~/.config/gtk-4.0
+ln -s ~/.themes/Everforest-Dark-BL-MOD/gtk-4.0/gtk-dark.css ~/.config/gtk-4.0
+
+# flatpak installation
+sudo apt install flatpak -y
+
+#enable flathub repository
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+# flatseal installation
+flatpak install flathub com.github.tchx84.Flatseal
+
+# flatseal configurations
+# Flatseal > All Aplications > Filesystem > Other files
+~/.local/share/icons
+~/.themes
+xdg-conf/gtk-4.0
+
+# icons installation
+mkdir ~/.icons
+unzip ~/Downloads/Papirus-everforest-icons.zip -d ~/.local/share/icons
+unzip ~/Downloads/Sevi-green-everforest-icons.zip -d ~/.local/share/icons
+
+# cursor installation
+mkdir ~/.icons
+unzip ~/Downloads/Sukito-R-Everforest.zip -d ~/.icons && unzip ~/Downloads/Sukito-S-Everforest.zip -d ~/.icons
+
+# install fonts
+unzip ~/Downloads/font-packs.zip -d ~/Downloads/
+rsync -av ~/Downloads/font-packs/.local $HOME
+
+# install wallpapers
+unzip ~/Downloads/wallpapers.zip -d ~/Downloads/
+rsync -av ~/Downloads/wallpapers/usr /
+
+# gnome-extension installation
+unzip ~/Downloads/gnome-extensions.zip -d ~/Downloads/
+rsync -av ~/Downloads/gnome-extensions/.local ~
+
+# gnome-shell configurations
+unzip ~/Downloads/gnome-config.zip -d ~/Downloads/
+cd ~/Downloads/gnome-config
+dconf load /org/gnome/desktop/ < org.gnome.desktop.dconf
+dconf load /org/gnome/shell/ < org.gnome.shell.dconf
+dconf load /org/gnome/mutter/ < org.gnome.mutter.dconf
+
+# conky installation
+sudo apt install conky-all jq -y
+unzip ~/Downloads/conky-config.zip -d ~/Downloads/
+rsync -av ~/Downloads/conky-config/.config ~
+
