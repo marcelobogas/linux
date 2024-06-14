@@ -1,5 +1,10 @@
 #!/usr/bin/bash
 
+##*** não pedir senha para o usuário autenticar alterações via terminal
+echo 'marcelo ALL=(ALL:ALL) NOPASSWD: ALL' | sudo tee -a /etc/sudoers.d/user
+
+sudo apt update && sudo apt dist-upgrade -y
+
 ##*** instalação da interface NALA para o terminal
 sudo apt install nala -y 
 
@@ -236,8 +241,3 @@ echo "<?php phpinfo(); ?>" | sudo tee -a /var/www/html/phpinfo.php
 
 sudo nala update && sudo nala upgrade -y && 
 sudo nala autoremove -y
-
-##** setar a variável globais
-echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.zshrc 
-echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.zshrc
-
