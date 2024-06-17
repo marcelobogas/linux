@@ -42,7 +42,7 @@ sudo nala install gnome-tweaks gnome-shell-extension-manager ca-certificates ubu
 
 sudo nala install snapd gparted preload vsftpd filezilla neofetch vlc gimp redis supervisor lsb-release gnupg2 apt-transport-https software-properties-common -y
 
-sudo nala install numlockx net-tools vim gdebi git curl apache2 tree gnupg dirmngr gcc g++ make -y
+sudo nala install timeshift numlockx net-tools vim gdebi git curl apache2 tree gnupg dirmngr gcc g++ make -y
 
 # flatpak installation
 sudo nala install flatpak -y

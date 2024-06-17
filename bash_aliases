@@ -8,3 +8,4 @@ alias ni="npm install"
 alias ci="composer install"
 alias cr="composer remove"
 alias cda="composer dump-autoload -o"
+alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
