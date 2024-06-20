@@ -1,0 +1,3 @@
+## forçar requisições em uma página web
+sudo apt install wrk -y
+wrk -t50 -c50 -d5s http://localhost:8000
