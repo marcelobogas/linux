@@ -1,3 +1,12 @@
 ## forçar requisições em uma página web
 sudo apt install wrk -y
 wrk -t50 -c50 -d5s http://localhost:8000
+
+## *** change php version
+sudo update-alternatives --config php
+
+## *** reset gnome configurations
+sudo dconf reset -f /org/gnome/
+
+## *** reset ubuntu installation
+sudo dconf reeset -f /
