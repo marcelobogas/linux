@@ -84,8 +84,8 @@ sudo chmod 775 /home/$USER/.config/composer/composer.json
 
 echo '{
 	"require": {
-		"php": "^8.2",
-		"laravel/installer": "^4.5"
+		"php": "^8.3",
+		"laravel/installer": "^5.10"
 	}
 }' >> /home/$USER/.config/composer/composer.json
 
@@ -94,8 +94,8 @@ composer install &&
 cd ~
 
 ##---Setar variável de ambiente do composer global---
-# echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc && 
-# source ~/.bashrc
+echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc && 
+source ~/.bashrc
 echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.zshrc && 
 source ~/.zshrc
 
