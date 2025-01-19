@@ -30,13 +30,40 @@ git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-~
 ##altere a linha ZSH_THEME="rubbyrussel"'
 ##ZSH_THEME="powerlevel10k/powerlevel10k"
 
-##** alterar a linha de plugins para:
-# plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)
-
 ## adionando plugins úteis
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+
+##** alterar a linha de plugins para:
+# plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)
+
+echo "plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)" > ~/.zshrc
+
+## arquivo para criação de aliases
+touch ~/.bash_aliases
+
+echo "alias update="sudo nala update"
+alias upgrade="sudo nala upgrade -y"
+alias nalai="sudo nala install -y"
+alias nalap="sudo nala purge -y"
+alias art="php artisan"
+alias nrd="npm run dev"
+alias nrb="npm run build"
+alias ni="npm install"
+alias ci="composer install"
+alias cu="composer update"
+alias cr="composer remove"
+alias cda="composer dump-autoload -o"
+alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm" > tee -a ~/.bash_aliases
+
+echo "if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi" > ~/.zshrc
+
+source ~/.zshrc
 
 sudo nala install gnome-tweaks gnome-shell-extension-manager ca-certificates ubuntu-restricted-extras build-essential synaptic wrk -y
 
@@ -224,19 +251,26 @@ sudo systemctl start minio
 sudo systemctl enable minio
 
 ##*** Instalação do Docker
+# Add Docker's official GPG key:
 sudo nala update &&
-sudo mkdir -p /etc/apt/keyrings && 
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg && 
-echo   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && 
-sudo nala update &&
-sudo nala install docker-ce docker-ce-cli containerd.io docker-compose-plugin -y && 
-sudo groupadd docker && 
-sudo usermod -aG docker $USER && 
+sudo install -m 0755 -d /etc/apt/keyrings &&
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc &&
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo nala update
+
+sudo nala install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo groupadd docker &&
+sudo usermod -aG docker $USER &&
 newgrp docker
 
-sudo chown "$USER":"$USER" /home/"$USER"/.docker -R
-sudo chmod g+rwx "$HOME/.docker" -R
+# restart terminal session
+exec su -l $USER
+
+# test docker installation succefully
+#docker run hello-world
 
 sudo systemctl enable docker.service
 sudo systemctl enable containerd.service
