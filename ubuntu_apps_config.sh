@@ -89,7 +89,7 @@ sudo gdebi /opt/./google-chrome-stable_current_amd64.deb
 ##*** php8.4 ***
 sudo add-apt-repository ppa:ondrej/php -y && 
 sudo nala update &&
-sudo nala install php8.4 libapache2-mod-php8.4 php8.4-{dev,common,xml,opcache,mbstring,zip,mysql,pgsql,curl,xdebug,redis,gd,bcmath,intl} unzip
+sudo nala install php8.4 libapache2-mod-php8.4 php8.4-{dev,common,xml,opcache,mbstring,zip,mysql,pgsql,curl,xdebug,redis,gd,bcmath,intl} unzip -y
 
 ##*** instalação do php-fpm
 sudo nala install php8.3-fpm -y
@@ -144,7 +144,7 @@ node -v
 npm -v 
 
 ##*** Instalação do VUE-JS ***
-sudo npm install -g @vue/cli
+npm install -g @vue/cli
 
 ##*** Link para a pasta FTP do Apache ***
 sudo mkdir -m755 /var/www/html/ftp -p &&
