@@ -28,7 +28,7 @@ echo "Instalando pacotes essenciais..."
 PACOTES=(
     gnome-tweaks gnome-shell-extension-manager ca-certificates ubuntu-restricted-extras build-essential synaptic wrk \
     snapd gparted preload vsftpd filezilla neofetch vlc gimp redis supervisor lsb-release gnupg2 apt-transport-https software-properties-common \
-    timeshift numlockx net-tools vim gdebi git curl apache2 tree gnupg dirmngr gcc g++ make flatpak
+    timeshift numlockx net-tools vim gdebi git curl apache2 tree gnupg dirmngr gcc g++ make flatpak curl sassc
 )
 
 for pkg in "${PACOTES[@]}"; do

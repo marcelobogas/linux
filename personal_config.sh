@@ -87,8 +87,10 @@ else
 fi
 
 # Ativa os aliases no Zsh apenas se ainda não estiver ativado
-if ! grep -qxF "source ~/.bash_aliases" ~/.zshrc; then
-    echo "source ~/.bash_aliases" >> ~/.zshrc
+if [ -f ~/.bash_aliases ]; then
+    if ! grep -qxF "source ~/.bash_aliases" ~/.zshrc; then
+        echo "source ~/.bash_aliases" >> ~/.zshrc
+    fi
 fi
 
 # Instalação da fonte FiraCode
@@ -123,9 +125,9 @@ else
     git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$THEME_DIR" || { echo "Erro ao instalar o tema Powerlevel10k."; exit 1; }
 fi
 
-# Configuração do tema no .zshrc
-if ! grep -q 'ZSH_THEME="powerlevel10k/powerlevel10k"' ~/.zshrc; then
-    echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >> ~/.zshrc
+# Atualiza ou insere ZSH_THEME no .zshrc
+if grep -q '^ZSH_THEME=' ~/.zshrc; then
+    sed -i 's|^ZSH_THEME=.*|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 fi
 
 # Instalação dos plugins do Zsh
@@ -145,10 +147,11 @@ for plugin in "${PLUGINS[@]}"; do
     fi
 done
 
-# Configuração final do Zsh
-if ! grep -q "plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)" ~/.zshrc; then
-    echo "plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)" >> ~/.zshrc
+# Atualiza ou insere plugins no .zshrc
+if grep -q '^plugins=' ~/.zshrc; then
+    sed -i 's|^plugins=.*|plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)|' ~/.zshrc
 fi
 
+# Configuração final do Zsh
 source ~/.zshrc || true
 echo "Instalação concluída com sucesso!"
