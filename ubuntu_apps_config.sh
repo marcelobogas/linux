@@ -92,19 +92,19 @@ sudo nala update &&
 sudo nala install php8.4 libapache2-mod-php8.4 php8.4-{dev,common,xml,opcache,mbstring,zip,mysql,pgsql,curl,xdebug,redis,gd,bcmath,intl} unzip -y
 
 ##*** instalação do php-fpm
-sudo nala install php8.3-fpm -y
-sudo a2enmod proxy_fcgi setenvif
-sudo a2enconf php8.3-fpm
+# sudo nala install php8.4-fpm -y
+# sudo a2enmod proxy_fcgi setenvif
+# sudo a2enconf php8.4-fpm
 
 ## habilitar o mode de reescrita de url do apache
 sudo a2enmod rewrite &&
 sudo a2dismod mpm_event && 
 sudo a2enmod mpm_prefork && 
-sudo a2enmod php8.3 && 
+sudo a2enmod php8.4 && 
 sudo systemctl restart apache2
 
 ##*** Composer ***
-curl -sS https://getcomposer.org/installer | php8.3 && sudo mv composer.phar /usr/local/bin/composer && 
+curl -sS https://getcomposer.org/installer | php8.4 && sudo mv composer.phar /usr/local/bin/composer && 
 sudo touch /home/$USER/.config/composer/composer.json && 
 sudo chown -R $USER: /home/$USER/.config/composer && 
 sudo chmod 775 /home/$USER/.config/composer/composer.json
