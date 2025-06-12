@@ -152,6 +152,11 @@ if grep -q '^plugins=' ~/.zshrc; then
     sed -i 's|^plugins=.*|plugins=(git zsh-autosuggestions zsh-syntax-highlighting copypath copyfile copybuffer jsontools)|' ~/.zshrc
 fi
 
+# Garante que a linha para incluir aliases está no final do .zshrc
+if ! tail -n 5 ~/.zshrc | grep -qxF '[ -f ~/.bash_aliases ] && source ~/.bash_aliases'; then
+    echo '[ -f ~/.bash_aliases ] && source ~/.bash_aliases' >> ~/.zshrc
+fi
+
 # Configuração final do Zsh
 source ~/.zshrc || true
 echo "Instalação concluída com sucesso!"
