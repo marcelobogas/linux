@@ -262,9 +262,18 @@ fi
 #* Instalar Mysql Server
 if ! dpkg -s mysql-server &>/dev/null; then
     sudo nala install mysql-server mysql-client -y
+
+    # Alterar a senha do root no MySQL
+    MYSQL_ROOT_PASSWORD=""
+
+    sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';"
+    sudo mysql -e "FLUSH PRIVILEGES;"
+
+    echo "Senha do root do MySQL alterada com sucesso."
 else
     echo "MySQL Server já está instalado."
 fi
+
 
 # instalação do phpmyadmin
 if ! dpkg -s phpmyadmin &>/dev/null; then
