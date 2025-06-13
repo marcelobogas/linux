@@ -86,16 +86,41 @@ if ! command -v composer > /dev/null; then
     fi
     cd /home/$USER/.config/composer/ && composer install && cd ~
 
-    #---Setar variável de ambiente do composer global---
-    echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc && 
-    source ~/.bashrc
-    echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.zshrc && 
-    source ~/.zshrc
     echo "Composer instalado com sucesso."
     composer --version
 else
     echo "Composer já está instalado."
 fi
+
+#---Setar variável de ambiente do composer global---
+for PROFILE in ~/.bashrc ~/.zshrc; do
+    # Remove comandos que produzem saída interativa
+    sed -i '/^composer --version$/d' "$PROFILE"
+    sed -i '/^laravel --version$/d' "$PROFILE"
+    # Garante apenas o PATH do composer global
+    if ! grep -Fxq 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' "$PROFILE"; then
+        echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> "$PROFILE"
+    fi
+    # Não executa source automaticamente
+    # O usuário pode abrir um novo terminal para carregar as alterações
+    # echo "Alterações aplicadas ao $PROFILE. Abra um novo terminal para carregar."
+done
+
+#---Setar NVM no shell profile---
+for PROFILE in ~/.bashrc ~/.zshrc; do
+    if ! grep -Fxq 'export NVM_DIR="$HOME/.nvm"' "$PROFILE"; then
+        echo 'export NVM_DIR="$HOME/.nvm"' >> "$PROFILE"
+    fi
+    if ! grep -Fxq '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' "$PROFILE"; then
+        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "$PROFILE"
+    fi
+    if ! grep -Fxq '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' "$PROFILE"; then
+        echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> "$PROFILE"
+    fi
+    # Não executa source automaticamente
+    # O usuário pode abrir um novo terminal para carregar as alterações
+    # echo "NVM configurado em $PROFILE. Abra um novo terminal para carregar."
+done
 
 #* Instalar o nodejs e o npm
 # Instala e configura NVM e Node.js 22
@@ -252,9 +277,18 @@ fi
 sudo sed -i "/AllowNoPassword/s|^\s*#\s*||" /etc/phpmyadmin/config.inc.php
 
 # montagem de partições NTFS no linux
-sudo mkdir -m775 /media/arquivos -p
-sudo chown -R $USER: /media/arquivos/
-echo "UUID=0EF00CA20EF00CA2 /media/arquivos/ ntfs-3g defaults 0 0" | sudo tee -a /etc/fstab
+if [ ! -d /media/arquivos ]; then
+    sudo mkdir -m775 /media/arquivos
+    sudo chown -R $USER: /media/arquivos/
+else
+    echo "/media/arquivos já existe. Pulando criação."
+fi
+# Valida se já existe a entrada no fstab antes de adicionar
+if ! grep -q '^UUID=0EF00CA20EF00CA2 /media/arquivos/ ntfs-3g defaults 0 0' /etc/fstab; then
+    echo "UUID=0EF00CA20EF00CA2 /media/arquivos/ ntfs-3g defaults 0 0" | sudo tee -a /etc/fstab
+else
+    echo "Entrada do /media/arquivos já existe no /etc/fstab."
+fi
 
 #* Instalação do MinIO-Server
 if ! command -v minio > /dev/null; then
