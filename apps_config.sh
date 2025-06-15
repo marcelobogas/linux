@@ -227,4 +227,7 @@ systemctl --user daemon-reexec
 
 echo "Cursor IDE instalado e configurado com sucesso! Use 'cursor' no terminal para iniciar."
 
+# 11. Para minimizar as aplicações ao clicar no ícone do dock
+gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize'
+
 echo "Configuração concluída!"
