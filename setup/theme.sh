@@ -18,6 +18,38 @@ setup_gnome_theme() {
         echo "✅ Git já está instalado!"
     fi
 
+    # Instalar Evolve Theme Manager
+    echo "📦 Instalando Evolve Theme Manager..."
+    if ! command -v evolve-themes &> /dev/null; then
+        local EVOLVE_DIR="/tmp/evolve-themes"
+        
+        # Clonar o repositório
+        if [ ! -d "$EVOLVE_DIR" ]; then
+            echo "🔄 Clonando repositório Evolve Theme Manager..."
+            git clone https://github.com/telage/evolve-themes.git "$EVOLVE_DIR" || ((ERROR_COUNT++))
+        fi
+        
+        # Instalar dependências
+        echo "📦 Instalando dependências do Evolve..."
+        install_package "gir1.2-gtk-3.0" || ((ERROR_COUNT++))
+        install_package "python3-gi" || ((ERROR_COUNT++))
+        install_package "python3-pip" || ((ERROR_COUNT++))
+        
+        # Instalar Evolve
+        if [ -d "$EVOLVE_DIR" ]; then
+            cd "$EVOLVE_DIR" || return 1
+            sudo pip3 install . || ((ERROR_COUNT++))
+            cd "$HOME" || return 1
+            rm -rf "$EVOLVE_DIR"
+            echo "✅ Evolve Theme Manager instalado!"
+        else
+            echo "❌ Falha ao instalar Evolve Theme Manager"
+            ((ERROR_COUNT++))
+        fi
+    else
+        echo "✅ Evolve Theme Manager já está instalado!"
+    fi
+
     # Instalar dependências do Vimix
     echo "📦 Instalando dependências do tema Vimix..."
     install_package "gtk2-engines-murrine" || ((ERROR_COUNT++))
@@ -85,9 +117,11 @@ setup_gnome_theme() {
     
     if [ $ERROR_COUNT -eq 0 ]; then
         echo "✅ Temas do GNOME configurados com sucesso!"
-        echo "ℹ️  Você pode alternar entre os temas nas configurações do GNOME:"
-        echo "   - GTK Theme: Vimix (várias variações disponíveis)"
-        echo "   - Ícones: Tela ou Papirus"
+        echo "ℹ️  Você pode gerenciar seus temas usando:"
+        echo "   1. Evolve Theme Manager (comando: evolve-themes)"
+        echo "   2. Configurações do GNOME:"
+        echo "      - GTK Theme: Vimix (várias variações disponíveis)"
+        echo "      - Ícones: Tela ou Papirus"
     else
         echo "⚠️ Configuração concluída com $ERROR_COUNT erro(s)"
         return 1
