@@ -50,29 +50,11 @@ setup_gnome_theme() {
         echo "✅ Evolve Theme Manager já está instalado!"
     fi
 
-    # Instalar dependências do Vimix
-    echo "📦 Instalando dependências do tema Vimix..."
+    # Instalar dependências de temas
+    echo "📦 Instalando dependências dos temas..."
     install_package "gtk2-engines-murrine" || ((ERROR_COUNT++))
     install_package "gtk2-engines-pixbuf" || ((ERROR_COUNT++))
-
-    # Instalar Vimix GTK Theme
-    if [ ! -d "$HOME/.themes/vimix-gtk-themes" ]; then
-        echo "📦 Instalando tema Vimix GTK..."
-        mkdir -p "$HOME/.themes"
-        cd "$HOME/.themes" || return 1
-        
-        if [ ! -d "$HOME/.themes/vimix-gtk-themes" ]; then
-            echo "🔄 Clonando repositório Vimix GTK Theme..."
-            git clone https://github.com/vinceliuice/vimix-gtk-themes.git || ((ERROR_COUNT++))
-        fi
-        
-        cd "vimix-gtk-themes" || return 1
-        ./install.sh || ((ERROR_COUNT++))
-        cd "$HOME" || return 1
-        echo "✅ Tema Vimix GTK instalado!"
-    else
-        echo "✅ Tema Vimix GTK já está instalado!"
-    fi
+    install_package "gnome-tweaks" || ((ERROR_COUNT++))
 
     # Instalar tema de ícones Tela
     if [ ! -d "$HOME/.icons/Tela" ]; then
@@ -111,8 +93,41 @@ setup_gnome_theme() {
         echo "✅ Tema de ícones Papirus já está instalado!"
     fi
 
+    # Instalar Everforest GTK Theme
+    if [ ! -d "$HOME/.themes/Everforest-Dark-BL" ]; then
+        echo "📦 Instalando tema Everforest GTK..."
+        local EVERFOREST_DIR="/tmp/Everforest-GTK-Theme"
+        
+        # Clonar o repositório
+        if [ ! -d "$EVERFOREST_DIR" ]; then
+            echo "🔄 Clonando repositório Everforest GTK Theme..."
+            git clone https://github.com/Fausto-Korpsvart/Everforest-GTK-Theme.git "$EVERFOREST_DIR" || ((ERROR_COUNT++))
+        fi
+        
+        # Copiar temas
+        echo "📦 Instalando temas Everforest..."
+        mkdir -p "$HOME/.themes"
+        cp -r "$EVERFOREST_DIR/themes/Everforest"* "$HOME/.themes/" || ((ERROR_COUNT++))
+        
+        # Copiar ícones
+        echo "📦 Instalando ícones Everforest..."
+        mkdir -p "$HOME/.icons"
+        cp -r "$EVERFOREST_DIR/icons/Everforest"* "$HOME/.icons/" || ((ERROR_COUNT++))
+        
+        # Configurar Flatpak para usar temas
+        echo "🔧 Configurando Flatpak para usar temas personalizados..."
+        flatpak override --user --filesystem=~/.themes || ((ERROR_COUNT++))
+        flatpak override --user --filesystem=~/.icons || ((ERROR_COUNT++))
+        
+        # Limpar diretório temporário
+        rm -rf "$EVERFOREST_DIR"
+        echo "✅ Tema Everforest instalado!"
+    else
+        echo "✅ Tema Everforest já está instalado!"
+    fi
+
     # Aplicar temas
-    gsettings set org.gnome.desktop.interface gtk-theme 'vimix-dark'
+    gsettings set org.gnome.desktop.interface gtk-theme 'Everforest-Dark-BL'
     gsettings set org.gnome.desktop.interface icon-theme 'Tela'
     
     if [ $ERROR_COUNT -eq 0 ]; then
@@ -120,8 +135,8 @@ setup_gnome_theme() {
         echo "ℹ️  Você pode gerenciar seus temas usando:"
         echo "   1. Evolve Theme Manager (comando: evolve-themes)"
         echo "   2. Configurações do GNOME:"
-        echo "      - GTK Theme: Vimix (várias variações disponíveis)"
-        echo "      - Ícones: Tela ou Papirus"
+        echo "      - GTK Theme: Everforest (várias variações disponíveis)"
+        echo "      - Ícones: Tela, Everforest ou Papirus"
     else
         echo "⚠️ Configuração concluída com $ERROR_COUNT erro(s)"
         return 1
