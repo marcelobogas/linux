@@ -68,7 +68,6 @@ setup_php_environment() {
         "php$PHP_VERSION-xml"
         "php$PHP_VERSION-opcache"
         "php$PHP_VERSION-mbstring"
-        "php$PHP_VERSION-zip"
         "php$PHP_VERSION-mysql"
         "php$PHP_VERSION-pgsql"
         "php$PHP_VERSION-curl"
@@ -76,8 +75,9 @@ setup_php_environment() {
         "php$PHP_VERSION-redis"
         "php$PHP_VERSION-gd"
         "php$PHP_VERSION-bcmath"
-        "php$PHP_VERSION-intl"
         "php$PHP_VERSION-fpm"
+        "php$PHP_VERSION-zip"
+        "php$PHP_VERSION-intl"
     )
     
     # Instalar pacotes PHP
@@ -297,8 +297,82 @@ install_dev_tools() {
     fi
 }
 
+# Função auxiliar para configurar shell RC files
+configure_shell_rc() {
+    local config_content="$1"
+    local error_count=0
+    
+    # Array com os arquivos RC e seus backups
+    declare -A RC_FILES=(
+        ["$HOME/.bashrc"]="$HOME/.bashrc.bak"
+        ["$HOME/.zshrc"]="$HOME/.zshrc.bak"
+    )
+    
+    # Função para adicionar configuração se não existir
+    add_config_if_missing() {
+        local rc_file="$1"
+        local backup_file="$2"
+        local added=0
+        
+        # Criar arquivo se não existir
+        if [ ! -f "$rc_file" ]; then
+            touch "$rc_file" || return 1
+        fi
+        
+        # Verificar permissões
+        if [ ! -w "$rc_file" ]; then
+            echo "❌ Sem permissão de escrita em $rc_file"
+            return 1
+        fi
+        
+        # Criar backup se não existir
+        if [ ! -f "$backup_file" ]; then
+            cp "$rc_file" "$backup_file" || return 1
+            echo "📦 Backup criado: $backup_file"
+        fi
+        
+        # Adicionar configuração se não existir
+        if ! grep -q "\.bash_aliases" "$rc_file"; then
+            echo "📝 Adicionando configuração em $rc_file..."
+            echo "$config_content" >> "$rc_file" || return 1
+            added=1
+        fi
+        
+        return $added
+    }
+    
+    echo "🔧 Configurando arquivos RC..."
+    
+    # Processar cada arquivo RC
+    for rc_file in "${!RC_FILES[@]}"; do
+        local backup_file="${RC_FILES[$rc_file]}"
+        
+        if add_config_if_missing "$rc_file" "$backup_file"; then
+            echo "✅ Configuração adicionada em $rc_file"
+        else
+            echo "ℹ️ Configuração já existe em $rc_file"
+        fi || {
+            echo "❌ Erro ao configurar $rc_file"
+            ((error_count++))
+        }
+    done
+    
+    return $error_count
+}
+
 configure_dev_aliases() {
     local ALIASES_FILE="/home/$USER/.bash_aliases"
+    local RC_ERROR=0
+
+    echo "🔍 Verificando arquivo de aliases..."
+    
+    # Garantir que o diretório home existe e temos permissão
+    if [ ! -w "$HOME" ]; then
+        echo "❌ Sem permissão de escrita no diretório home"
+        return 1
+    fi
+
+    # Conteúdo dos aliases
     local ALIASES_CONTENT="# Package Management
 alias update=\"sudo nala update\"
 alias upgrade=\"sudo nala upgrade -y\"
@@ -318,99 +392,79 @@ alias nu=\"npm update\"
 alias nrd=\"npm run dev\"
 alias nrb=\"npm run build\"
 
+# Git aliases
+alias gs=\"git status\"
+alias gl=\"git log\"
+alias gp=\"git pull\"
+alias gps=\"git push\"
+alias gc=\"git commit -m\"
+alias ga=\"git add\"
+alias gaa=\"git add --all\"
+
+# Docker aliases
+alias dc=\"docker-compose\"
+alias dcup=\"docker-compose up -d\"
+alias dcdown=\"docker-compose down\"
+alias dps=\"docker ps\"
+
+# Utilidades
+alias ll=\"ls -la\"
+alias cls=\"clear\"
+alias ..=\"cd ..\"
+alias ...=\"cd ../..\"
+alias reload=\"source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null\"
+
 # NVM Configuration
 export NVM_DIR=\"\$([ -z \"\${XDG_CONFIG_HOME-}\" ] && printf %s \"\${HOME}/.nvm\" || printf %s \"\${XDG_CONFIG_HOME}/nvm\")\"
 [ -s \"\$NVM_DIR/nvm.sh\" ] && \\. \"\$NVM_DIR/nvm.sh\" # This loads nvm"
 
-    echo "🔍 Verificando arquivo de aliases..."
-    
+    # Criar ou atualizar arquivo de aliases
     if [ -f "$ALIASES_FILE" ]; then
-        echo "📝 Arquivo .bash_aliases encontrado, verificando conteúdo..."
-        
-        # Criar backup do arquivo existente
-        cp "$ALIASES_FILE" "${ALIASES_FILE}.bak"
+        echo "📝 Arquivo .bash_aliases encontrado, fazendo backup..."
+        if ! cp "$ALIASES_FILE" "${ALIASES_FILE}.bak"; then
+            echo "❌ Falha ao criar backup do arquivo de aliases"
+            return 1
+        fi
         echo "📦 Backup criado: ${ALIASES_FILE}.bak"
-        
-        # Verificar cada alias
-        local MISSING_ALIASES=0
-        local ALIASES_TO_CHECK=(
-            "alias update="
-            "alias upgrade="
-            "alias nalai="
-            "alias art="
-            "alias arts
-            ="
-            "alias ni="
-            "alias nu="
-            "alias nrd="
-            "alias nrb="
-            "alias ci="
-            "alias cu="
-            "alias cr="
-            "alias cda="
-            "alias sail="
-        )
-        
-        for alias in "${ALIASES_TO_CHECK[@]}"; do
-            if ! grep -q "^$alias" "$ALIASES_FILE"; then
-                ((MISSING_ALIASES++))
-            fi
-        done
-        
-        if [ $MISSING_ALIASES -gt 0 ]; then
-            echo "⚠️ Alguns aliases estão faltando, atualizando arquivo..."
-            echo "$ALIASES_CONTENT" > "$ALIASES_FILE"
-            echo "✅ Aliases atualizados com sucesso!"
-        else
-            echo "✅ Todos os aliases já estão configurados!"
-        fi
+    fi
+
+    # Tentar escrever o novo conteúdo
+    if ! echo "$ALIASES_CONTENT" > "$ALIASES_FILE"; then
+        echo "❌ Falha ao escrever arquivo de aliases"
+        return 1
+    fi
+
+    # Verificar se o arquivo foi escrito corretamente
+    if [ ! -f "$ALIASES_FILE" ]; then
+        echo "❌ Arquivo de aliases não foi criado"
+        return 1
+    fi
+
+    # Configuração para os arquivos RC
+    local RC_CONFIG="
+# Alias definitions
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi"
+
+    # Configurar bash e zsh
+    configure_shell_rc "$RC_CONFIG" || RC_ERROR=1
+
+    # Tentar carregar aliases no ambiente atual
+    if [ -f "$ALIASES_FILE" ]; then
+        . "$ALIASES_FILE" 2>/dev/null || true
+    fi
+
+    if [ $RC_ERROR -eq 0 ]; then
+        echo "✅ Aliases configurados com sucesso!"
+        echo "ℹ️  Use o comando 'reload' para carregar as novas configurações"
+        echo "   ou abra um novo terminal"
+        return 0
     else
-        echo "📝 Criando novo arquivo .bash_aliases..."
-        echo "$ALIASES_CONTENT" > "$ALIASES_FILE"
-        echo "✅ Arquivo .bash_aliases criado com sucesso!"
+        echo "⚠️ Alguns erros ocorreram durante a configuração"
+        echo "ℹ️  Execute 'source ~/.bashrc' ou 'source ~/.zshrc' manualmente"
+        return 1
     fi
-    
-    # Garantir que os arquivos RC carregam os aliases
-    # Para Bash
-    if ! grep -q "\.bash_aliases" "$HOME/.bashrc"; then
-        echo -e "\n# Alias definitions\nif [ -f ~/.bash_aliases ]; then\n    . ~/.bash_aliases\nfi" >> "$HOME/.bashrc"
-        echo "✅ Configuração adicionada ao .bashrc"
-    fi
-    
-    # Para Zsh
-    if [ -f "$HOME/.zshrc" ]; then
-        echo "🔍 Verificando configurações do Zsh..."
-        if ! grep -q "if \[ -f ~/\.bash_aliases \]; then" "$HOME/.zshrc"; then
-            # Criar backup do .zshrc
-            cp "$HOME/.zshrc" "$HOME/.zshrc.bak"
-            echo "📦 Backup do .zshrc criado: $HOME/.zshrc.bak"
-            
-            # Adicionar configuração
-            echo -e "\n# Alias definitions\nif [ -f ~/.bash_aliases ]; then\n    . ~/.bash_aliases\nfi" >> "$HOME/.zshrc"
-            echo "✅ Configuração de aliases adicionada ao .zshrc"
-        else
-            echo "✅ .zshrc já está configurado para carregar os aliases"
-        fi
-    fi
-    
-    # Recarregar configurações do shell
-    echo "🔄 Recarregando configurações do shell..."
-    
-    # Recarregar .bashrc
-    source "$HOME/.bashrc" 2>/dev/null || true
-    
-    # Recarregar .zshrc se existir
-    if [ -f "$HOME/.zshrc" ]; then
-        if [ "$SHELL" = "/usr/bin/zsh" ] || [ "$SHELL" = "/bin/zsh" ]; then
-            source "$HOME/.zshrc" 2>/dev/null || true
-            echo "✅ Configurações do Zsh atualizadas"
-        else
-            echo "ℹ️  Arquivo .zshrc encontrado, mas você não está usando Zsh"
-            echo "   Para carregar as configurações, execute: source ~/.zshrc"
-        fi
-    fi
-    
-    echo "✅ Configurações de shell atualizadas com sucesso!"
 }
 
 # Função para configurar PHP-FPM no Apache
@@ -424,7 +478,7 @@ configure_apache_fpm() {
     
     # Verificar configuração do PHP-FPM
     if ! systemctl is-active --quiet "php$PHP_VERSION-fpm"; then
-        echo "🔄 Iniciando serviço PHP-FPM..."
+        echo "🔄 Iniciando serviço PHP-FPM..."  
         sudo systemctl start "php$PHP_VERSION-fpm"
         sudo systemctl enable "php$PHP_VERSION-fpm"
     fi
@@ -443,34 +497,275 @@ configure_apache_fpm() {
     fi
 }
 
+# Função para configurar MySQL em modo desenvolvimento
+setup_mysql() {
+    echo "🐬 Configurando MySQL para desenvolvimento..."
+    
+    # Instalar MySQL se não estiver instalado
+    if ! dpkg -s mysql-server &>/dev/null; then
+        echo "📦 Instalando MySQL Server..."
+        install_package "mysql-server" || return 1
+    else
+        echo "✅ MySQL já está instalado!"
+    fi
+    
+    # Habilitar e iniciar o serviço
+    sudo systemctl enable mysql
+    sudo systemctl start mysql
+    
+    # Habilitar login sem senha (ambiente local)
+    local MYSQL_CONF="/etc/mysql/mysql.conf.d/mysqld.cnf"
+    if ! grep -q "skip-grant-tables" "$MYSQL_CONF"; then
+        echo "🔧 Configurando MySQL para modo desenvolvimento..."
+        sudo sed -i '/^\[mysqld\]/a skip-grant-tables' "$MYSQL_CONF"
+        sudo systemctl restart mysql
+    fi
+    
+    # Criar banco padrão e usuário 'dev'
+    echo "🔧 Configurando banco de dados e usuário padrão..."
+    mysql -u root <<MYSQL_SCRIPT
+FLUSH PRIVILEGES;
+CREATE DATABASE IF NOT EXISTS laravel_dev;
+CREATE USER IF NOT EXISTS 'dev'@'localhost' IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON laravel_dev.* TO 'dev'@'localhost';
+FLUSH PRIVILEGES;
+MYSQL_SCRIPT
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ MySQL configurado com sucesso!"
+        return 0
+    else
+        echo "❌ Erro ao configurar MySQL"
+        return 1
+    fi
+}
+
+# Função para configurar Laravel e Composer
+setup_laravel() {
+    local PHP_VERSION=$1
+    echo "🚀 Configurando Laravel e Composer..."
+    
+    # Instalar Composer se não estiver instalado
+    if ! command -v composer >/dev/null; then
+        echo "📦 Instalando Composer..."
+        curl -sS https://getcomposer.org/installer | php$PHP_VERSION
+        sudo mv composer.phar /usr/local/bin/composer
+    else
+        echo "✅ Composer já está instalado!"
+    fi
+    
+    # Configurar Composer e Laravel Installer
+    echo "🔧 Configurando Laravel Installer..."
+    mkdir -p ~/.config/composer
+    cat <<EOF > ~/.config/composer/composer.json
+{
+    "require": {
+        "php": "^$PHP_VERSION",
+        "laravel/installer": "^5.10"
+    }
+}
+EOF
+    
+    (cd ~/.config/composer && composer install)
+    
+    # Adicionar composer vendor/bin ao PATH
+    if ! grep -q 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' ~/.bashrc; then
+        echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc
+    fi
+    
+    echo "✅ Laravel e Composer configurados com sucesso!"
+}
+
+# Função para configurar Supervisor para projetos Laravel
+setup_supervisor() {
+    local PHP_VERSION=$1
+    local USER=$2
+    local BASE_DIR="/home/$USER/projects"
+    local PROJETOS=("gym-management-system" "school-management-system" "api")
+    local PORTAS=(8001 8002 8003)
+    
+    echo "👀 Configurando Supervisor..."
+    
+    # Instalar Supervisor se necessário
+    if ! command -v supervisorctl >/dev/null; then
+        echo "📦 Instalando Supervisor..."
+        install_package "supervisor" || return 1
+    else
+        echo "✅ Supervisor já está instalado!"
+    fi
+    
+    # Criar configurações para cada projeto
+    echo "🔧 Configurando projetos no Supervisor..."
+    for i in "${!PROJETOS[@]}"; do
+        local PROJ=${PROJETOS[$i]}
+        local PORTA=${PORTAS[$i]}
+        local DIR_PROJ="$BASE_DIR/$PROJ"
+        local CONF_FILE="/etc/supervisor/conf.d/laravel_$PROJ.conf"
+        
+        if [ ! -d "$DIR_PROJ" ]; then
+            echo "⚠️ Projeto '$DIR_PROJ' não encontrado. Pulando..."
+            continue
+        fi
+        
+        sudo tee "$CONF_FILE" > /dev/null <<EOF
+[program:laravel_$PROJ]
+command=/usr/bin/php$PHP_VERSION artisan serve --host=127.0.0.1 --port=$PORTA
+directory=$DIR_PROJ
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/laravel_$PROJ.err.log
+stdout_logfile=/var/log/supervisor/laravel_$PROJ.out.log
+user=$USER
+EOF
+    done
+    
+    # Recarregar configurações
+    sudo supervisorctl reread
+    sudo supervisorctl update
+    
+    echo "✅ Supervisor configurado com sucesso!"
+}
+
+# Função para configurar VHost Apache com proxy reverso
+configure_laravel_vhost() {
+    local PHP_VERSION=$1
+    local PROJETOS=("gym-management-system" "school-management-system" "api")
+    local PORTAS=(8001 8002 8003)
+    local VHOST="/etc/apache2/sites-available/laravel-dev.conf"
+    local SOCKET="/run/php/php$PHP_VERSION-fpm.sock"
+    
+    echo "🌐 Configurando VHost Apache com proxy reverso..."
+    
+    # Criar configuração base do VHost
+    sudo tee "$VHOST" > /dev/null <<EOF
+<VirtualHost *:80>
+    ServerName localhost
+    ProxyPreserveHost On
+EOF
+    
+    # Adicionar configuração para cada projeto
+    for i in "${!PROJETOS[@]}"; do
+        local PROJ=${PROJETOS[$i]}
+        local PORTA=${PORTAS[$i]}
+        
+        sudo tee -a "$VHOST" > /dev/null <<EOF
+    
+    ProxyPass /$PROJ http://127.0.0.1:$PORTA/
+    ProxyPassReverse /$PROJ http://127.0.0.1:$PORTA/
+EOF
+    done
+    
+    # Finalizar configuração do VHost
+    sudo tee -a "$VHOST" > /dev/null <<EOF
+    
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:$SOCKET|fcgi://localhost"
+    </FilesMatch>
+</VirtualHost>
+EOF
+    
+    # Ativar o site e recarregar Apache
+    sudo a2ensite laravel-dev.conf
+    sudo systemctl reload apache2
+    
+    echo "✅ VHost Apache configurado com sucesso!"
+    echo -e "\n🔗 URLs dos projetos:"
+    for PROJ in "${PROJETOS[@]}"; do
+        echo "http://localhost/$PROJ"
+    done
+}
+
+# Função auxiliar para verificar dependências
+check_dependencies() {
+    local DEPS=("curl" "wget" "apt-transport-https" "ca-certificates" "software-properties-common")
+    local MISSING=()
+
+    echo "🔍 Verificando dependências básicas..."
+    
+    for dep in "${DEPS[@]}"; do
+        if ! command -v "$dep" &>/dev/null && ! dpkg -s "$dep" &>/dev/null; then
+            MISSING+=("$dep")
+        fi
+    done
+    
+    if [ ${#MISSING[@]} -gt 0 ]; then
+        echo "📦 Instalando dependências faltantes: ${MISSING[*]}"
+        sudo apt update
+        sudo apt install -y "${MISSING[@]}" || return 1
+    fi
+    
+    return 0
+}
+
 # Configuração do ambiente de desenvolvimento completo
 setup_dev_environment() {
     echo "🚀 Iniciando configuração completa do ambiente de desenvolvimento..."
     local ERROR_COUNT=0
+    local PHP_VERSION="8.4"
+    local USER="$(whoami)"
+    local START_TIME=$(date +%s)
 
-    # Configurar aliases primeiro para ter disponível durante o resto da instalação
-    configure_dev_aliases || ((ERROR_COUNT++))
+    # Verificar dependências básicas primeiro
+    check_dependencies || {
+        echo "❌ Falha ao instalar dependências básicas"
+        return 1
+    }
 
-    # Configurar PHP e servidor web
-    setup_php_environment || ((ERROR_COUNT++))
-    setup_web_server || ((ERROR_COUNT++))
+    # Array para armazenar mensagens de erro
+    declare -a ERROR_MESSAGES=()
 
-    # Configurar Node.js
-    setup_node_environment || ((ERROR_COUNT++))
+    # Função auxiliar para executar e registrar erros
+    run_step() {
+        local step_name="$1"
+        local step_func="$2"
+        shift 2
+        
+        echo -e "\n📋 Executando: $step_name..."
+        if ! $step_func "$@"; then
+            ((ERROR_COUNT++))
+            ERROR_MESSAGES+=("❌ Falha em: $step_name")
+            return 1
+        fi
+        return 0
+    }
 
-    # Configurar bancos de dados
-    setup_databases || ((ERROR_COUNT++))
+    # Executar cada etapa com tratamento de erro
+    run_step "Configuração de Aliases" configure_dev_aliases
+    run_step "Ambiente PHP" setup_php_environment
+    run_step "Servidor Web" setup_web_server
+    run_step "Node.js" setup_node_environment
+    run_step "Bancos de dados" setup_databases
+    run_step "MySQL" setup_mysql
+    run_step "Laravel e Composer" setup_laravel "$PHP_VERSION"
+    run_step "Supervisor" setup_supervisor "$PHP_VERSION" "$USER"
+    run_step "VHost Laravel" configure_laravel_vhost "$PHP_VERSION"
+    run_step "Ferramentas de Desenvolvimento" install_dev_tools
 
-    # Instalar ferramentas de desenvolvimento
-    install_dev_tools || ((ERROR_COUNT++))
+    # Calcular tempo de execução
+    local END_TIME=$(date +%s)
+    local DURATION=$((END_TIME - START_TIME))
+    local MINUTES=$((DURATION / 60))
+    local SECONDS=$((DURATION % 60))
 
-    # Verificar resultado final
+    echo -e "\n📊 Relatório de Instalação"
+    echo "⏱️  Tempo total: ${MINUTES}m ${SECONDS}s"
+
     if [ $ERROR_COUNT -eq 0 ]; then
         echo "✅ Ambiente de desenvolvimento configurado com sucesso!"
+        echo -e "\n📝 Próximos passos:"
+        echo "1. Execute 'source ~/.bashrc' para carregar os novos aliases"
+        echo "2. Verifique os serviços com 'systemctl status apache2 mysql php$PHP_VERSION-fpm'"
+        echo "3. Acesse http://localhost para testar o Apache"
         return 0
     else
         echo "⚠️ Configuração concluída com $ERROR_COUNT erro(s)"
-        echo "📋 Por favor, verifique as mensagens acima"
+        echo -e "\n❌ Erros encontrados:"
+        printf '%s\n' "${ERROR_MESSAGES[@]}"
+        echo -e "\n🔧 Sugestões de correção:"
+        echo "1. Execute 'sudo apt update' e tente novamente"
+        echo "2. Verifique se você tem permissões de sudo"
+        echo "3. Verifique a conexão com a internet"
+        echo "4. Tente executar cada componente individualmente pelo menu"
         return 1
     fi
 }
@@ -484,7 +779,11 @@ show_dev_menu() {
     echo -e "${GREEN}4)${NC} Node.js"
     echo -e "${GREEN}5)${NC} Bancos de dados"
     echo -e "${GREEN}6)${NC} Ferramentas de desenvolvimento"
-    echo -e "${GREEN}7)${NC} Configurar TUDO"
+    echo -e "${GREEN}7)${NC} MySQL para Desenvolvimento"
+    echo -e "${GREEN}8)${NC} Laravel e Composer"
+    echo -e "${GREEN}9)${NC} Configurar Supervisor"
+    echo -e "${GREEN}10)${NC} Configurar VHost Laravel"
+    echo -e "${GREEN}11)${NC} Configurar TUDO"
     echo -e "${GREEN}0)${NC} Voltar"
     
     read -r choice
@@ -495,7 +794,11 @@ show_dev_menu() {
         4) setup_node_environment ;;
         5) setup_databases ;;
         6) install_dev_tools ;;
-        7) setup_dev_environment ;;
+        7) setup_mysql ;;
+        8) setup_laravel "8.4" ;;
+        9) setup_supervisor "8.4" "$(whoami)" ;;
+        10) configure_laravel_vhost "8.4" ;;
+        11) setup_dev_environment ;;
         0) return ;;
         *) echo -e "${RED}Opção inválida${NC}" ;;
     esac
