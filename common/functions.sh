@@ -56,7 +56,7 @@ add_ppa() {
     if ! grep -q "^deb .*$grep_pattern" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
         echo "⚙️ Adicionando PPA: $ppa"
         sudo add-apt-repository -y "ppa:$ppa"
-        sudo nala update
+        sudo sudo apt install update
     fi
 }
 

@@ -374,9 +374,9 @@ configure_dev_aliases() {
 
     # Conteúdo dos aliases
     local ALIASES_CONTENT="# Package Management
-alias update=\"sudo nala update\"
-alias upgrade=\"sudo nala upgrade -y\"
-alias nalai=\"sudo nala install -y\"
+alias update=\"sudo sudo apt install update\"
+alias upgrade=\"sudo sudo apt install upgrade -y\"
+alias sudo apt installi=\"sudo sudo apt install install -y\"
 
 # PHP/Laravel
 alias art=\"php artisan\"

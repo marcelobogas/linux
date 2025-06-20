@@ -6,10 +6,10 @@ source "$(dirname "$0")/../common/config.sh"
 setup_system_base() {
     echo "🚀 Configurando sistema base..."
     
-    # Nala
-    if ! command -v nala &> /dev/null; then
+    # sudo apt install
+    if ! command -v sudo apt install &> /dev/null; then
         sudo apt update
-        sudo apt install nala -y
+        sudo apt install sudo apt install -y
     fi
     
     # Pacotes essenciais
