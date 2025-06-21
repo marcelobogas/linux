@@ -80,3 +80,98 @@ ESSENTIAL_PACKAGES=(
     flatpak
     sassc
 )
+
+# Configurações padrão
+readonly DEFAULT_PHP_VERSION="8.4"
+readonly DEFAULT_NODE_VERSION="22"
+readonly REQUIRED_DISK_SPACE=5120  # 5GB em MB
+readonly MIN_RAM=4096  # 4GB em MB
+
+# Validar ambiente
+validate_environment() {
+    local ERROR_COUNT=0
+    
+    log_info "Iniciando validação do ambiente..."
+    
+    # Verificar pacotes essenciais críticos
+    local CRITICAL_PACKAGES=("apt" "dpkg" "flatpak" "git" "curl")
+    for pkg in "${CRITICAL_PACKAGES[@]}"; do
+        if ! check_package_installed "$pkg"; then
+            log_error "Pacote crítico $pkg não está instalado"
+            ((ERROR_COUNT++))
+        fi
+    done
+    
+    # Verificar repositório universe
+    if ! check_universe_repository; then
+        log_error "Falha ao configurar repositório Universe"
+        ((ERROR_COUNT++))
+    fi
+    
+    # Verificar espaço em disco
+    if ! check_disk_space "/usr/local" "$REQUIRED_DISK_SPACE"; then
+        log_error "Espaço em disco insuficiente"
+        ((ERROR_COUNT++))
+    fi
+    
+    # Verificar memória RAM
+    local TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+    if [ "$TOTAL_RAM" -lt "$MIN_RAM" ]; then
+        log_warning "Memória RAM abaixo do recomendado (${MIN_RAM}MB). Disponível: ${TOTAL_RAM}MB"
+    fi
+    
+    # Verificar conexão com a internet
+    if ! ping -c 1 google.com &>/dev/null; then
+        log_error "Sem conexão com a internet"
+        ((ERROR_COUNT++))
+    fi
+    
+    # Verificar arquitetura do sistema
+    if [ "$(uname -m)" != "x86_64" ]; then
+        log_error "Este script suporta apenas sistemas x86_64"
+        ((ERROR_COUNT++))
+    fi
+    
+    return $ERROR_COUNT
+}
+
+# Variáveis de versão
+declare -A VERSIONS
+VERSIONS=(
+    ["php"]="$DEFAULT_PHP_VERSION"
+    ["node"]="$DEFAULT_NODE_VERSION"
+    ["mysql"]="8.0"
+    ["postgresql"]="16"
+)
+
+# Configurações de diretórios
+declare -A DIR_CONFIG
+DIR_CONFIG=(
+    ["temp"]="/tmp/linux_setup"
+    ["backups"]="/tmp/linux_setup/backups"
+    ["downloads"]="/tmp/linux_setup/downloads"
+    ["logs"]="/tmp/linux_setup/logs"
+)
+
+# Criar diretórios necessários
+setup_directories() {
+    for dir in "${DIR_CONFIG[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+        fi
+    done
+}
+
+# Inicialização do ambiente
+init_environment() {
+    setup_directories
+    if ! validate_environment; then
+        log_error "Falha na validação do ambiente"
+        return 1
+    fi
+    log_success "Ambiente validado com sucesso"
+    return 0
+}
+
+# Executar inicialização
+init_environment || exit 1

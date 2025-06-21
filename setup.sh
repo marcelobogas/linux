@@ -3,9 +3,19 @@
 # Importar configurações comuns
 SCRIPT_DIR="$(dirname "$0")"
 CONFIG_FILE="$SCRIPT_DIR/common/config.sh"
+FUNCTIONS_FILE="$SCRIPT_DIR/common/functions.sh"
 
 echo -e "\n🔍 Verificando arquivos de configuração..."
 
+# Verificar e carregar functions.sh
+if [ ! -f "$FUNCTIONS_FILE" ]; then
+    echo -e "${RED}❌ Arquivo de funções não encontrado: $FUNCTIONS_FILE${NC}"
+    exit 1
+fi
+
+source "$FUNCTIONS_FILE"
+
+# Verificar e carregar config.sh
 if [ ! -f "$CONFIG_FILE" ]; then
     echo -e "${RED}❌ Arquivo de configuração não encontrado: $CONFIG_FILE${NC}"
     exit 1

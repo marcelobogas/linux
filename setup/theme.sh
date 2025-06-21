@@ -18,59 +18,67 @@ setup_gnome_theme() {
         echo "✅ Git já está instalado!"
     fi
 
-    # Instalar Evolve Theme Manager
-    echo "📦 Instalando Evolve Theme Manager..."
-    if ! command -v evolve-themes &> /dev/null; then
-        local EVOLVE_DIR="/tmp/evolve-themes"
-        
-        # Clonar o repositório
-        if [ ! -d "$EVOLVE_DIR" ]; then
-            echo "🔄 Clonando repositório Evolve Theme Manager..."
-            git clone https://github.com/telage/evolve-themes.git "$EVOLVE_DIR" || ((ERROR_COUNT++))
-        fi
-        
-        # Instalar dependências
-        echo "📦 Instalando dependências do Evolve..."
-        install_package "gir1.2-gtk-3.0" || ((ERROR_COUNT++))
-        install_package "python3-gi" || ((ERROR_COUNT++))
-        install_package "python3-pip" || ((ERROR_COUNT++))
-        
-        # Instalar Evolve
-        if [ -d "$EVOLVE_DIR" ]; then
-            cd "$EVOLVE_DIR" || return 1
-            sudo pip3 install . || ((ERROR_COUNT++))
-            cd "$HOME" || return 1
-            rm -rf "$EVOLVE_DIR"
-            echo "✅ Evolve Theme Manager instalado!"
-        else
-            echo "❌ Falha ao instalar Evolve Theme Manager"
-            ((ERROR_COUNT++))
-        fi
-    else
-        echo "✅ Evolve Theme Manager já está instalado!"
-    fi
-
-    # Instalar dependências de temas
+    # Instalar dependências dos temas
     echo "📦 Instalando dependências dos temas..."
     install_package "gtk2-engines-murrine" || ((ERROR_COUNT++))
     install_package "gtk2-engines-pixbuf" || ((ERROR_COUNT++))
     install_package "gnome-tweaks" || ((ERROR_COUNT++))
+    install_package "unzip" || ((ERROR_COUNT++))
 
     # Instalar tema de ícones Tela
-    if [ ! -d "$HOME/.icons/Tela" ]; then
+    if ! find "$HOME/.icons" -maxdepth 1 -type d -name 'Tela*' 2>/dev/null | grep -q .; then
         echo "📦 Instalando tema de ícones Tela..."
-        mkdir -p "$HOME/.icons"
-        cd "$HOME/.icons" || return 1
+        local TELA_DIR="$HOME/.icons/Tela-icon-theme"
         
-        if [ ! -d "$HOME/.icons/Tela-icon-theme" ]; then
-            echo "🔄 Clonando repositório Tela-icon-theme..."
-            git clone https://github.com/vinceliuice/Tela-icon-theme.git || ((ERROR_COUNT++))
+        # Criar diretório de ícones se não existir
+        mkdir -p "$HOME/.icons"
+        cd "$HOME/.icons" || {
+            echo "❌ Falha ao acessar diretório de ícones"
+            ((ERROR_COUNT++))
+            return 1
+        }
+        
+        # Limpar instalação anterior se existir
+        if [ -d "$TELA_DIR" ]; then
+            echo "🔄 Removendo instalação anterior do Tela..."
+            rm -rf "$TELA_DIR"
         fi
         
-        cd "Tela-icon-theme" || return 1
-        ./install.sh || ((ERROR_COUNT++))
-        cd "$HOME" || return 1
-        echo "✅ Tema de ícones Tela instalado!"
+        # Clonar repositório
+        echo "🔄 Clonando repositório Tela-icon-theme..."
+        git clone https://github.com/vinceliuice/Tela-icon-theme.git "$TELA_DIR" || {
+            echo "❌ Falha ao clonar tema Tela"
+            ((ERROR_COUNT++))
+            return 1
+        }
+        
+        # Verificar script de instalação
+        if [ ! -f "$TELA_DIR/install.sh" ]; then
+            echo "❌ Script de instalação do Tela não encontrado"
+            ((ERROR_COUNT++))
+            rm -rf "$TELA_DIR"
+            return 1
+        fi
+        
+        # Instalar tema
+        echo "🔄 Instalando tema Tela..."
+        chmod +x "$TELA_DIR/install.sh"
+        (cd "$TELA_DIR" && ./install.sh) || {
+            echo "❌ Falha ao executar script de instalação do Tela"
+            ((ERROR_COUNT++))
+            return 1
+        }
+        
+        # Verificar se instalou pelo menos uma variante
+        if find "$HOME/.icons" -maxdepth 1 -type d -name 'Tela*' 2>/dev/null | grep -q .; then
+            echo "✅ Tema de ícones Tela instalado com sucesso!"
+            # Limpar diretório do repositório
+            rm -rf "$TELA_DIR"
+        else
+            echo "❌ Falha ao instalar tema de ícones Tela"
+            ((ERROR_COUNT++))
+            return 1
+        fi
     else
         echo "✅ Tema de ícones Tela já está instalado!"
     fi
@@ -94,25 +102,43 @@ setup_gnome_theme() {
     fi
 
     # Instalar Everforest GTK Theme
-    if [ ! -d "$HOME/.themes/Everforest-Dark-BL" ]; then
+    if [ ! -d "$HOME/.themes/Everforest-Dark" ]; then
         echo "📦 Instalando tema Everforest GTK..."
         local EVERFOREST_DIR="/tmp/Everforest-GTK-Theme"
         
-        # Clonar o repositório
-        if [ ! -d "$EVERFOREST_DIR" ]; then
-            echo "🔄 Clonando repositório Everforest GTK Theme..."
-            git clone https://github.com/Fausto-Korpsvart/Everforest-GTK-Theme.git "$EVERFOREST_DIR" || ((ERROR_COUNT++))
+        # Limpar diretório temporário se existir
+        if [ -d "$EVERFOREST_DIR" ]; then
+            rm -rf "$EVERFOREST_DIR"
         fi
         
-        # Copiar temas
-        echo "📦 Instalando temas Everforest..."
-        mkdir -p "$HOME/.themes"
-        cp -r "$EVERFOREST_DIR/themes/Everforest"* "$HOME/.themes/" || ((ERROR_COUNT++))
+        # Clonar o repositório
+        echo "🔄 Clonando repositório Everforest GTK Theme..."
+        git clone --depth=1 https://github.com/Fausto-Korpsvart/Everforest-GTK-Theme.git "$EVERFOREST_DIR" || {
+            echo "❌ Falha ao clonar tema Everforest"
+            ((ERROR_COUNT++))
+            return 1
+        }
         
-        # Copiar ícones
-        echo "📦 Instalando ícones Everforest..."
-        mkdir -p "$HOME/.icons"
-        cp -r "$EVERFOREST_DIR/icons/Everforest"* "$HOME/.icons/" || ((ERROR_COUNT++))
+        # Verificar estrutura do repositório e script de instalação
+        if [ ! -f "$EVERFOREST_DIR/themes/install.sh" ]; then
+            echo "❌ Script de instalação do Everforest não encontrado"
+            ((ERROR_COUNT++))
+            rm -rf "$EVERFOREST_DIR"
+            return 1
+        fi
+        
+        # Criar diretório de temas
+        mkdir -p "$HOME/.themes"
+        
+        # Executar script de instalação
+        echo "📦 Instalando temas Everforest..."
+        chmod +x "$EVERFOREST_DIR/themes/install.sh"
+        (cd "$EVERFOREST_DIR/themes" && ./install.sh -t all) || {
+            echo "❌ Falha ao executar script de instalação do Everforest"
+            ((ERROR_COUNT++))
+            rm -rf "$EVERFOREST_DIR"
+            return 1
+        }
         
         # Configurar Flatpak para usar temas
         echo "🔧 Configurando Flatpak para usar temas personalizados..."
@@ -121,22 +147,86 @@ setup_gnome_theme() {
         
         # Limpar diretório temporário
         rm -rf "$EVERFOREST_DIR"
-        echo "✅ Tema Everforest instalado!"
+        
+        if [ -d "$HOME/.themes/Everforest-Dark" ]; then
+            echo "✅ Tema Everforest instalado com sucesso!"
+        else
+            echo "❌ Falha ao instalar tema Everforest"
+            ((ERROR_COUNT++))
+        fi
     else
         echo "✅ Tema Everforest já está instalado!"
     fi
 
+    # Instalar Nordzy Icons
+    if [ ! -d "$HOME/.local/share/icons/Nordzy" ]; then
+        echo "📦 Instalando tema de ícones Nordzy..."
+        local NORDZY_DIR="/tmp/Nordzy-icons"
+        local ICONS_DIR="$HOME/.local/share/icons"
+        
+        # Limpar diretório temporário se existir
+        if [ -d "$NORDZY_DIR" ]; then
+            rm -rf "$NORDZY_DIR"
+        fi
+        
+        # Clonar repositório
+        echo "🔄 Clonando repositório Nordzy Icons..."
+        git clone --depth=1 https://github.com/MolassesLover/Nordzy-icon.git "$NORDZY_DIR" || {
+            echo "❌ Falha ao clonar Nordzy icons"
+            ((ERROR_COUNT++))
+            return 1
+        }
+        
+        # Verificar se o script de instalação existe
+        if [ ! -f "$NORDZY_DIR/install.sh" ]; then
+            echo "❌ Script de instalação do Nordzy não encontrado"
+            ((ERROR_COUNT++))
+            rm -rf "$NORDZY_DIR"
+            return 1
+        fi
+        
+        # Criar diretório de ícones se não existir
+        mkdir -p "$ICONS_DIR"
+        
+        # Instalar tema de ícones
+        echo "🔄 Instalando tema Nordzy..."
+        chmod +x "$NORDZY_DIR/install.sh"
+        (cd "$NORDZY_DIR" && ./install.sh -t default) || {
+            echo "❌ Falha ao executar script de instalação do Nordzy"
+            ((ERROR_COUNT++))
+            return 1
+        }
+        
+        # Limpar diretório temporário
+        rm -rf "$NORDZY_DIR"
+        
+        # Verificar se a instalação foi bem-sucedida
+        if [ -d "$ICONS_DIR/Nordzy" ]; then
+            echo "✅ Tema de ícones Nordzy instalado com sucesso!"
+            # Criar link simbólico em ~/.icons para compatibilidade
+            mkdir -p "$HOME/.icons"
+            ln -sf "$ICONS_DIR/Nordzy" "$HOME/.icons/Nordzy" || {
+                echo "⚠️ Aviso: Não foi possível criar link simbólico em ~/.icons"
+            }
+        else
+            echo "❌ Falha ao instalar tema de ícones Nordzy"
+            ((ERROR_COUNT++))
+            return 1
+        fi
+    else
+        echo "✅ Tema de ícones Nordzy já está instalado!"
+    fi
+
     # Aplicar temas
-    gsettings set org.gnome.desktop.interface gtk-theme 'Everforest-Dark-BL'
-    gsettings set org.gnome.desktop.interface icon-theme 'Tela'
+    gsettings set org.gnome.desktop.interface gtk-theme 'Everforest-Dark'
+    gsettings set org.gnome.desktop.interface icon-theme 'Nordzy'
     
     if [ $ERROR_COUNT -eq 0 ]; then
         echo "✅ Temas do GNOME configurados com sucesso!"
-        echo "ℹ️  Você pode gerenciar seus temas usando:"
-        echo "   1. Evolve Theme Manager (comando: evolve-themes)"
-        echo "   2. Configurações do GNOME:"
-        echo "      - GTK Theme: Everforest (várias variações disponíveis)"
-        echo "      - Ícones: Tela, Everforest ou Papirus"
+        echo "ℹ️  Você pode gerenciar seus temas usando as Configurações do GNOME:"
+        echo "   - GTK Theme: Everforest Dark B"
+        echo "   - Ícones: Nordzy"
+        echo "ℹ️  Use o GNOME Tweaks para personalização avançada"
     else
         echo "⚠️ Configuração concluída com $ERROR_COUNT erro(s)"
         return 1

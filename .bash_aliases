@@ -1,6 +1,8 @@
-alias update="sudo sudo apt install update"
-alias upgrade="sudo sudo apt install upgrade -y"
-alias sudo apt installi="sudo sudo apt install install -y"
+alias update="sudo apt update"
+alias upgrade="sudo apt upgrade -y"
+alias install="sudo apt install -y"
+
+# Laravel Aliases
 alias art="php artisan"
 alias ni="npm install"
 alias nu="npm update"

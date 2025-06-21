@@ -4,38 +4,49 @@ source "$(dirname "$0")/../common/functions.sh"
 source "$(dirname "$0")/../common/config.sh"
 
 # Função para validar e ajustar repositórios PHP
+CODENAME=noble
+
 validate_php_repositories() {
-    local SOURCES_FILE="/etc/apt/sources.list.d/ondrej-ubuntu-php-plucky.sources"
-    local BACKUP_FILE="${SOURCES_FILE}.bak"
+    local ORIGINAL_CODENAME=$(lsb_release -cs)
+    local SOURCES_FILE="/etc/apt/sources.list.d/ondrej-ubuntu-php-${ORIGINAL_CODENAME}.sources"
+    local TARGET_FILE="/etc/apt/sources.list.d/ondrej-ubuntu-php-$CODENAME.sources"
+    local BACKUP_FILE="${TARGET_FILE}.bak"
 
-    echo "🔍 Validando repositórios PHP..."
+    echo "🔍 Validando repositório PHP (.sources)..."
 
-    # Criar backup se o arquivo existir e não houver backup
-    if [ -f "$SOURCES_FILE" ] && [ ! -f "$BACKUP_FILE" ]; then
-        sudo cp "$SOURCES_FILE" "$BACKUP_FILE"
-        echo "📦 Backup do arquivo de repositórios criado: $BACKUP_FILE"
+    # Adicionar o repositório caso não exista nenhum arquivo correspondente
+    if [ ! -f "$SOURCES_FILE" ] && [ ! -f "$TARGET_FILE" ]; then
+        sudo add-apt-repository -y ppa:ondrej/php
+        echo "✅ Repositório PHP adicionado!"
     fi
 
-    # Verificar e ajustar o arquivo de repositório
-    if [ -f "$SOURCES_FILE" ]; then
-        # Verificar se precisa ajustar o Suite para noble
-        if grep -q "^Suites: plucky" "$SOURCES_FILE"; then
-            echo "🔧 Ajustando Suite para noble no arquivo de repositórios..."
-            sudo sed -i 's/^Suites: plucky/Suites: noble/' "$SOURCES_FILE"
-            sudo apt update
-            echo "✅ Repositórios PHP atualizados com sucesso!"
-        elif grep -q "^Suites: noble" "$SOURCES_FILE"; then
-            echo "✅ Repositórios PHP já estão configurados corretamente!"
+    # Se ainda existir o arquivo com codename original, renomear para usar 'noble'
+    if [ -f "$SOURCES_FILE" ] && [ ! -f "$TARGET_FILE" ]; then
+        sudo mv "$SOURCES_FILE" "$TARGET_FILE"
+        echo "📁 Renomeado: $SOURCES_FILE → $TARGET_FILE"
+    fi
+
+    # Criar backup, se necessário
+    if [ -f "$TARGET_FILE" ] && [ ! -f "$BACKUP_FILE" ]; then
+        sudo cp "$TARGET_FILE" "$BACKUP_FILE"
+        echo "📦 Backup criado: $BACKUP_FILE"
+    fi
+
+    # Ajustar a linha "Suites:" para o codename desejado
+    if grep -q "^Suites:" "$TARGET_FILE"; then
+        if grep -q "^Suites: $CODENAME" "$TARGET_FILE"; then
+            echo "✅ Repositório já usa 'Suites: $CODENAME'."
         else
-            echo "⚠️ Configuração de Suite não encontrada, adicionando..."
-            echo "Suites: noble" | sudo tee -a "$SOURCES_FILE" > /dev/null
+            echo "🔧 Corrigindo 'Suites' para '$CODENAME'..."
+            sudo sed -i "s/^Suites:.*/Suites: $CODENAME/" "$TARGET_FILE"
             sudo apt update
-            echo "✅ Repositórios PHP configurados com sucesso!"
+            echo "✅ Suite atualizado para '$CODENAME'."
         fi
     else
-        echo "❌ Arquivo de configuração do PHP não encontrado: $SOURCES_FILE"
-        echo "ℹ️  Certifique-se de que o repositório ondrej/php foi adicionado corretamente"
-        return 1
+        echo "⚠️ Linha 'Suites:' não encontrada. Adicionando..."
+        echo "Suites: $CODENAME" | sudo tee -a "$TARGET_FILE" > /dev/null
+        sudo apt update
+        echo "✅ Linha 'Suites: $CODENAME' adicionada!"
     fi
 }
 
@@ -80,12 +91,16 @@ setup_php_environment() {
         "php$PHP_VERSION-intl"
     )
     
-    # Instalar pacotes PHP
+    # Instalar ou verificar pacotes PHP
     for package in "${PHP_PACKAGES[@]}"; do
-        echo "🔄 Instalando $package..."
-        if ! sudo apt install -y "$package"; then
-            echo "⚠️ Falha ao instalar $package"
-            ((ERROR_COUNT++))
+        if check_package_installed "$package"; then
+            echo "✅ Pacote $package já está instalado"
+        else
+            echo "🔄 Instalando $package..."
+            if ! sudo apt install -y "$package"; then
+                echo "⚠️ Falha ao instalar $package"
+                ((ERROR_COUNT++))
+            fi
         fi
     done
     
@@ -114,45 +129,34 @@ setup_web_server() {
     local ERROR_COUNT=0
     
     # Verificar Apache
-    if systemctl is-active --quiet apache2; then
-        echo "✅ Apache já está instalado e rodando!"
-    else
-        echo "📦 Instalando Apache..."
-        install_package "apache2" || ((ERROR_COUNT++))
+    if check_package_installed "apache2"; then
+        echo "✅ Apache já está instalado!"
         
-        if [ $ERROR_COUNT -eq 0 ]; then
-            echo "🔧 Configurando módulos Apache..."
-            sudo a2enmod rewrite proxy proxy_http
-            
-            # Configurar PHP-FPM se o PHP estiver instalado
-            if command -v php > /dev/null; then
-                PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
-                configure_apache_fpm "$PHP_VERSION" || ((ERROR_COUNT++))
-            else
-                # Configuração padrão se PHP não estiver instalado
-                sudo a2enmod proxy_fcgi setenvif
-                sudo a2dismod mpm_event || true
-                sudo a2enmod mpm_prefork
-            fi
+        # Verificar e habilitar módulos necessários
+        if ! a2query -m proxy; then
+            sudo a2enmod proxy proxy_http
+            sudo a2enmod proxy_fcgi setenvif
+            sudo a2dismod mpm_event || true
+            sudo a2enmod mpm_prefork
+            sudo systemctl restart apache2
         fi
+    else
+        install_package "apache2" || ((ERROR_COUNT++))
     fi
     
     # Verificar VSFTPD
     if systemctl is-active --quiet vsftpd; then
         echo "✅ VSFTPD já está instalado e rodando!"
     else
-        echo "📦 Instalando VSFTPD..."
         install_package "vsftpd" || ((ERROR_COUNT++))
     fi
     
     if [ $ERROR_COUNT -eq 0 ]; then
-        setup_ftp_directories
-        configure_vsftpd
         echo "✅ Servidor web configurado com sucesso!"
-    else
-        echo "⚠️ Configuração concluída com $ERROR_COUNT erro(s)"
-        return 1
+        return 0
     fi
+    
+    return 1
 }
 
 setup_ftp_directories() {
@@ -195,17 +199,24 @@ configure_vsftpd() {
 
 setup_node_environment() {
     local NODE_VERSION="22"
-    echo "📦 Configurando Node.js $NODE_VERSION..."
+    local ERROR_COUNT=0
     
-    # Verificar se NVM já está instalado
+    echo "� Verificando ambiente Node.js..."
+    
+    # Verificar NVM e Node.js
     export NVM_DIR="$HOME/.nvm"
     if [ -d "$NVM_DIR" ]; then
+        echo "✅ NVM já está instalado"
         source "$NVM_DIR/nvm.sh" || true
         
-        # Verificar se a versão correta do Node está instalada
-        if command -v node > /dev/null && node -v | grep -q "v$NODE_VERSION"; then
-            echo "✅ Node.js $NODE_VERSION já está instalado!"
-            return 0
+        if command -v node > /dev/null; then
+            local CURRENT_VERSION=$(node -v | cut -d'v' -f2)
+            if [ "$CURRENT_VERSION" = "$NODE_VERSION" ]; then
+                echo "✅ Node.js $NODE_VERSION já está instalado e ativo!"
+                return 0
+            else
+                echo "ℹ️ Node.js $CURRENT_VERSION encontrado, atualizando para $NODE_VERSION..."
+            fi
         fi
     fi
     
@@ -238,19 +249,39 @@ setup_databases() {
     local ERROR_COUNT=0
     
     # PostgreSQL
-    if systemctl is-active --quiet postgresql; then
-        echo "✅ PostgreSQL já está instalado e rodando!"
+    if check_package_installed "postgresql"; then
+        echo "✅ PostgreSQL já está instalado"
+        if ! systemctl is-active --quiet postgresql; then
+            echo "🔄 Iniciando serviço PostgreSQL..."
+            sudo systemctl start postgresql || ((ERROR_COUNT++))
+            sudo systemctl enable postgresql || ((ERROR_COUNT++))
+        fi
     else
         echo "📦 Instalando PostgreSQL..."
         install_package "postgresql" || ((ERROR_COUNT++))
+        if [ $ERROR_COUNT -eq 0 ]; then
+            echo "🔄 Iniciando serviço PostgreSQL..."
+            sudo systemctl start postgresql || ((ERROR_COUNT++))
+            sudo systemctl enable postgresql || ((ERROR_COUNT++))
+        fi
     fi
     
     # Redis
-    if systemctl is-active --quiet redis-server; then
-        echo "✅ Redis já está instalado e rodando!"
+    if check_package_installed "redis-server"; then
+        echo "✅ Redis já está instalado"
+        if ! systemctl is-active --quiet redis-server; then
+            echo "🔄 Iniciando serviço Redis..."
+            sudo systemctl start redis-server || ((ERROR_COUNT++))
+            sudo systemctl enable redis-server || ((ERROR_COUNT++))
+        fi
     else
         echo "📦 Instalando Redis..."
         install_package "redis" || ((ERROR_COUNT++))
+        if [ $ERROR_COUNT -eq 0 ]; then
+            echo "🔄 Iniciando serviço Redis..."
+            sudo systemctl start redis-server || ((ERROR_COUNT++))
+            sudo systemctl enable redis-server || ((ERROR_COUNT++))
+        fi
     fi
     
     if [ $ERROR_COUNT -eq 0 ]; then
@@ -261,41 +292,262 @@ setup_databases() {
     fi
 }
 
-install_dev_tools() {
-    echo "🔨 Instalando ferramentas de desenvolvimento..."
-    local ERROR_COUNT=0
+install_chrome() {
+    echo "� Verificando instalação do Google Chrome..."
     
-    # Chrome
-    if command -v google-chrome > /dev/null; then
+    if check_package_installed "google-chrome-stable"; then
         echo "✅ Google Chrome já está instalado!"
-    else
-        echo "📦 Instalando Google Chrome..."
-        install_chrome || ((ERROR_COUNT++))
+        return 0
     fi
     
-    # VSCode
-    if command -v code > /dev/null; then
+    echo "�📦 Instalando Google Chrome..."
+    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O chrome.deb || {
+        echo "❌ Falha ao baixar Google Chrome"
+        return 1
+    }
+    
+    sudo apt install -y ./chrome.deb || {
+        echo "❌ Falha ao instalar Google Chrome"
+        rm chrome.deb
+        return 1
+    }
+    
+    rm chrome.deb
+    
+    if check_package_installed "google-chrome-stable"; then
+        echo "✅ Google Chrome instalado com sucesso!"
+        return 0
+    else
+        echo "❌ Falha na instalação do Google Chrome"
+        return 1
+    fi
+}
+
+install_vscode() {
+    echo "� Verificando instalação do Visual Studio Code..."
+    
+    if check_package_installed "code"; then
         echo "✅ Visual Studio Code já está instalado!"
-    else
-        echo "📦 Instalando Visual Studio Code..."
-        install_vscode || ((ERROR_COUNT++))
+        return 0
     fi
     
-    # Cursor
-    if command -v cursor > /dev/null; then
-        echo "✅ Cursor já está instalado!"
-    else
-        echo "📦 Instalando Cursor..."
-        install_cursor || ((ERROR_COUNT++))
+    echo "�📦 Instalando Visual Studio Code..."
+    
+    # Adicionar chave e repositório
+    if ! [ -f "/usr/share/keyrings/microsoft.gpg" ]; then
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg || {
+            echo "❌ Falha ao baixar chave Microsoft"
+            return 1
+        }
+        sudo install -o root -g root -m 644 microsoft.gpg /usr/share/keyrings/ || {
+            echo "❌ Falha ao instalar chave Microsoft"
+            rm microsoft.gpg
+            return 1
+        }
+        rm microsoft.gpg
     fi
     
+    # Configurar repositório se não existir
+    if ! [ -f "/etc/apt/sources.list.d/vscode.list" ]; then
+        sudo sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list' || {
+            echo "❌ Falha ao configurar repositório VS Code"
+            return 1
+        }
+        sudo apt update
+    fi
+    
+    # Instalar VS Code
+    sudo apt install -y code || {
+        echo "❌ Falha ao instalar VS Code"
+        return 1
+    }
+    
+    if check_package_installed "code"; then
+        echo "✅ Visual Studio Code instalado com sucesso!"
+        return 0
+    else
+        echo "❌ Falha na instalação do VS Code"
+        return 1
+    fi
+}
+
+install_cursor() {
+    echo "📦 Instalando Cursor AI..."
+    local ERROR_COUNT=0
+    local INSTALL_DIR="/usr/local/cursor"
+    local BIN_DIR="/usr/local/bin"
+    local APPLICATIONS_DIR="/usr/share/applications"
+    local ICONS_DIR="/usr/share/icons/hicolor/512x512/apps"
+    local BACKUP_DIR="/tmp/cursor_backup_$(date +%Y%m%d_%H%M%S)"
+    local CURSOR_VERSION="1.1.3"
+    local DOWNLOAD_URL="https://downloads.cursor.com/production/979ba33804ac150108481c14e0b5cb970bda3266/linux/x64/Cursor-${CURSOR_VERSION}-x86_64.AppImage"
+    local ICON_URL="https://raw.githubusercontent.com/getcursor/cursor/main/packages/renderer/assets/cursor-512.png"
+
+    # Verificar arquitetura do sistema
+    if [ "$(uname -m)" != "x86_64" ]; then
+        echo "❌ Este script suporta apenas sistemas x86_64"
+        return 1
+    fi
+
+    # Verificar espaço em disco (mínimo 1GB livre)
+    local FREE_SPACE=$(df -k /usr/local | awk 'NR==2 {print $4}')
+    if [ "$FREE_SPACE" -lt 1048576 ]; then
+        echo "❌ Espaço insuficiente em disco. Necessário pelo menos 1GB livre em /usr/local"
+        return 1
+    fi
+
+    # Backup de instalação existente
+    if [ -f "$BIN_DIR/cursor" ] || [ -d "$INSTALL_DIR" ]; then
+        echo "📦 Fazendo backup da instalação existente..."
+        mkdir -p "$BACKUP_DIR"
+        [ -f "$BIN_DIR/cursor" ] && sudo cp "$BIN_DIR/cursor" "$BACKUP_DIR/"
+        [ -d "$INSTALL_DIR" ] && sudo cp -r "$INSTALL_DIR" "$BACKUP_DIR/"
+        [ -f "$APPLICATIONS_DIR/cursor.desktop" ] && sudo cp "$APPLICATIONS_DIR/cursor.desktop" "$BACKUP_DIR/"
+        
+        echo "🧹 Removendo instalação anterior..."
+        sudo rm -f "$BIN_DIR/cursor"
+        sudo rm -rf "$INSTALL_DIR"
+        sudo rm -f "$APPLICATIONS_DIR/cursor.desktop"
+        echo "✅ Backup salvo em: $BACKUP_DIR"
+    fi
+
+    echo "🔧 Criando diretórios de instalação..."
+    sudo mkdir -p "$INSTALL_DIR" "$ICONS_DIR" || ((ERROR_COUNT++))
+    sudo chown root:root "$INSTALL_DIR"
+    sudo chmod 755 "$INSTALL_DIR"
+
+    echo "⬇️ Baixando Cursor AppImage..."
+    if ! sudo curl -L "$DOWNLOAD_URL" -o "$INSTALL_DIR/cursor.AppImage"; then
+        echo "❌ Falha ao baixar o Cursor AppImage"
+        ((ERROR_COUNT++))
+    fi
+
+    echo "⬇️ Baixando ícone do Cursor..."
+    if ! sudo curl -L "$ICON_URL" -o "$ICONS_DIR/cursor.png"; then
+        echo "❌ Falha ao baixar o ícone"
+        ((ERROR_COUNT++))
+    fi
+
+    echo "🔒 Ajustando permissões..."
+    sudo chmod +x "$INSTALL_DIR/cursor.AppImage" || ((ERROR_COUNT++))
+    sudo chown root:root "$INSTALL_DIR/cursor.AppImage" || ((ERROR_COUNT++))
+
+    echo "� Criando link simbólico..."
+    sudo ln -sf "$INSTALL_DIR/cursor.AppImage" "$BIN_DIR/cursor" || ((ERROR_COUNT++))
+
+    # Verificar e instalar dependências do AppImage
+    echo "🔍 Verificando dependências..."
+    if ! dpkg -s libfuse2 &>/dev/null && ! dpkg -s libfuse2:amd64 &>/dev/null; then
+        echo "� Instalando libfuse2..."
+        sudo apt update
+        sudo apt install -y libfuse2 || ((ERROR_COUNT++))
+    fi
+
+    echo "�📝 Criando entrada no menu de aplicativos..."
+    sudo tee "$APPLICATIONS_DIR/cursor.desktop" > /dev/null <<EOF || ((ERROR_COUNT++))
+[Desktop Entry]
+Name=Cursor
+Comment=AI-first code editor
+Exec=/usr/local/bin/cursor --no-sandbox
+Icon=/usr/share/icons/hicolor/512x512/apps/cursor.png
+Type=Application
+Categories=Development;TextEditor;
+Keywords=cursor;code;editor;ai;development;
+StartupWMClass=Cursor
+EOF
+
+    # Atualizar cache de ícones e aplicativos
+    echo "🔄 Atualizando cache do sistema..."
+    sudo update-desktop-database "$APPLICATIONS_DIR" || ((ERROR_COUNT++))
+    sudo gtk-update-icon-cache -f -t /usr/share/icons/hicolor || true
+
     if [ $ERROR_COUNT -eq 0 ]; then
-        echo "✅ Todas as ferramentas de desenvolvimento foram instaladas com sucesso!"
+        echo "✅ Cursor AI instalado com sucesso!"
+        echo "ℹ️  Você pode iniciar o Cursor AI pelo menu de aplicativos ou executando 'cursor' no terminal"
+        return 0
+    else
+        echo "❌ Instalação do Cursor AI concluída com $ERROR_COUNT erro(s)"
+        return 1
+    fi
+}
+
+install_postman() {
+    local POSTMAN_DIR="/opt/postman"
+    local DESKTOP_FILE="/usr/share/applications/postman.desktop"
+    local BIN_LINK="/usr/local/bin/postman"
+    
+    echo "🔍 Verificando instalação do Postman..."
+    
+    # Verificação completa da instalação
+    if [ -d "$POSTMAN_DIR" ] && [ -f "$DESKTOP_FILE" ] && [ -L "$BIN_LINK" ]; then
+        if [ -x "$BIN_LINK" ] && "$BIN_LINK" --version &>/dev/null; then
+            echo "✅ Postman já está instalado e funcionando!"
+            return 0
+        else
+            echo "⚠️ Instalação do Postman encontrada mas pode estar corrompida, reinstalando..."
+            sudo rm -rf "$POSTMAN_DIR" "$DESKTOP_FILE" "$BIN_LINK"
+        fi
+    fi
+    
+    echo "📦 Instalando Postman..."
+
+    # Baixa e instala o Postman
+    echo "⬇️ Baixando Postman..."
+    wget -q -O /tmp/postman.tar.gz "https://dl.pstmn.io/download/latest/linux64" || {
+        echo "❌ Falha ao baixar Postman"
+        return 1
+    }
+
+    # Cria diretório e extrai
+    sudo mkdir -p "$POSTMAN_DIR"
+    sudo tar -xzf /tmp/postman.tar.gz -C "$POSTMAN_DIR" --strip-components=1
+    rm /tmp/postman.tar.gz
+
+    # Cria link simbólico
+    sudo ln -sf "$POSTMAN_DIR/Postman" /usr/local/bin/postman
+
+    # Cria atalho no menu
+    echo "🔧 Criando atalho no menu..."
+    sudo tee "$DESKTOP_FILE" > /dev/null <<EOF
+[Desktop Entry]
+Name=Postman
+GenericName=API Development Environment
+Comment=Build, test, and document your APIs
+Exec=/usr/local/bin/postman
+Terminal=false
+Type=Application
+Icon=$POSTMAN_DIR/app/resources/app/assets/icon.png
+Categories=Development;Network;
+EOF
+
+    echo "✅ Postman instalado com sucesso!"
+}
+
+install_dev_tools() {
+    echo "🛠️ Instalando ferramentas de desenvolvimento..."
+    local ERROR_COUNT=0
+
+    # Instalar Google Chrome
+    install_chrome || ((ERROR_COUNT++))
+
+    # Instalar VS Code
+    install_vscode || ((ERROR_COUNT++))
+
+    # Instalar Cursor
+    install_cursor || ((ERROR_COUNT++))
+
+    # Instalar Postman
+    install_postman || ((ERROR_COUNT++))
+
+    if [ $ERROR_COUNT -eq 0 ]; then
+        echo "✅ Todas as ferramentas instaladas com sucesso!"
+        return 0
     else
         echo "⚠️ Instalação concluída com $ERROR_COUNT erro(s)"
         return 1
     fi
 }
+
 
 # Função auxiliar para configurar shell RC files
 configure_shell_rc() {
@@ -374,12 +626,13 @@ configure_dev_aliases() {
 
     # Conteúdo dos aliases
     local ALIASES_CONTENT="# Package Management
-alias update=\"sudo sudo apt install update\"
-alias upgrade=\"sudo sudo apt install upgrade -y\"
-alias sudo apt installi=\"sudo sudo apt install install -y\"
+alias update=\"sudo apt update\"
+alias upgrade=\"sudo apt upgrade -y\"
+alias install=\"sudo apt install -y\"
 
 # PHP/Laravel
 alias art=\"php artisan\"
+alias arts=\"php artisan serve\"
 alias ci=\"composer install\"
 alias cu=\"composer update\"
 alias cr=\"composer remove\"
@@ -500,58 +753,71 @@ configure_apache_fpm() {
 # Função para configurar MySQL em modo desenvolvimento
 setup_mysql() {
     echo "🐬 Configurando MySQL para desenvolvimento..."
+    local ERROR_COUNT=0
     
-    # Instalar MySQL se não estiver instalado
-    if ! dpkg -s mysql-server &>/dev/null; then
+    # Verificar instalação do MySQL
+    if check_package_installed "mysql-server"; then
+        echo "✅ MySQL Server já está instalado!"
+    else
         echo "📦 Instalando MySQL Server..."
         install_package "mysql-server" || return 1
-    else
-        echo "✅ MySQL já está instalado!"
     fi
     
-    # Habilitar e iniciar o serviço
-    sudo systemctl enable mysql
-    sudo systemctl start mysql
-    
-    # Habilitar login sem senha (ambiente local)
-    local MYSQL_CONF="/etc/mysql/mysql.conf.d/mysqld.cnf"
-    if ! grep -q "skip-grant-tables" "$MYSQL_CONF"; then
-        echo "🔧 Configurando MySQL para modo desenvolvimento..."
-        sudo sed -i '/^\[mysqld\]/a skip-grant-tables' "$MYSQL_CONF"
-        sudo systemctl restart mysql
+    # Verificar status do serviço
+    if ! systemctl is-active --quiet mysql; then
+        echo "🔄 Iniciando serviço MySQL..."
+        sudo systemctl start mysql || ((ERROR_COUNT++))
     fi
-    
-    # Criar banco padrão e usuário 'dev'
-    echo "🔧 Configurando banco de dados e usuário padrão..."
-    mysql -u root <<MYSQL_SCRIPT
-FLUSH PRIVILEGES;
+
+ sudo systemctl enable mysql
+ sudo systemctl start mysql
+
+ echo "🔧 Criando banco de dados e usuário para desenvolvimento..."
+ mysql -u root <<MYSQL_SCRIPT
 CREATE DATABASE IF NOT EXISTS laravel_dev;
-CREATE USER IF NOT EXISTS 'dev'@'localhost' IDENTIFIED BY '';
+CREATE USER IF NOT EXISTS 'dev'@'localhost' IDENTIFIED WITH mysql_native_password BY '';
 GRANT ALL PRIVILEGES ON laravel_dev.* TO 'dev'@'localhost';
 FLUSH PRIVILEGES;
 MYSQL_SCRIPT
-    
-    if [ $? -eq 0 ]; then
-        echo "✅ MySQL configurado com sucesso!"
-        return 0
-    else
-        echo "❌ Erro ao configurar MySQL"
-        return 1
-    fi
+
+ if [ $? -eq 0 ]; then
+     echo "✅ MySQL configurado com sucesso!"
+     return 0
+ else
+     echo "❌ Erro ao configurar MySQL"
+     return 1
+ fi
 }
 
 # Função para configurar Laravel e Composer
 setup_laravel() {
     local PHP_VERSION=$1
-    echo "🚀 Configurando Laravel e Composer..."
+    local ERROR_COUNT=0
     
-    # Instalar Composer se não estiver instalado
-    if ! command -v composer >/dev/null; then
-        echo "📦 Instalando Composer..."
-        curl -sS https://getcomposer.org/installer | php$PHP_VERSION
-        sudo mv composer.phar /usr/local/bin/composer
+    echo "� Verificando ambiente Laravel/Composer..."
+    
+    # Verificar Composer
+    if command -v composer >/dev/null; then
+        echo "✅ Composer já está instalado"
+        # Verificar versão do Composer
+        local COMPOSER_VERSION=$(composer --version | grep -oP 'Composer version \K[0-9]+\.[0-9]+')
+        echo "ℹ️ Versão do Composer: $COMPOSER_VERSION"
+        
+        # Atualizar Composer se necessário
+        if [ $(echo "$COMPOSER_VERSION < 2.0" | bc -l) -eq 1 ]; then
+            echo "🔄 Atualizando Composer..."
+            sudo composer self-update || ((ERROR_COUNT++))
+        fi
     else
-        echo "✅ Composer já está instalado!"
+        echo "📦 Instalando Composer..."
+        curl -sS https://getcomposer.org/installer | php$PHP_VERSION || ((ERROR_COUNT++))
+        sudo mv composer.phar /usr/local/bin/composer || ((ERROR_COUNT++))
+        sudo chmod +x /usr/local/bin/composer || ((ERROR_COUNT++))
+    fi
+    
+    if [ $ERROR_COUNT -gt 0 ]; then
+        echo "❌ Falha na configuração do Composer"
+        return 1
     fi
     
     # Configurar Composer e Laravel Installer
@@ -583,16 +849,34 @@ setup_supervisor() {
     local BASE_DIR="/home/$USER/projects"
     local PROJETOS=("gym-management-system" "school-management-system" "api")
     local PORTAS=(8001 8002 8003)
+    local ERROR_COUNT=0
     
-    echo "👀 Configurando Supervisor..."
+    echo "� Verificando configuração do Supervisor..."
     
-    # Instalar Supervisor se necessário
-    if ! command -v supervisorctl >/dev/null; then
+    # Verificar instalação e status do Supervisor
+    if check_package_installed "supervisor"; then
+        echo "✅ Supervisor já está instalado"
+        if ! systemctl is-active --quiet supervisor; then
+            echo "🔄 Iniciando serviço Supervisor..."
+            sudo systemctl start supervisor || ((ERROR_COUNT++))
+            sudo systemctl enable supervisor || ((ERROR_COUNT++))
+        fi
+    else
         echo "📦 Instalando Supervisor..."
         install_package "supervisor" || return 1
-    else
-        echo "✅ Supervisor já está instalado!"
+        
+        echo "🔄 Iniciando serviço Supervisor..."
+        sudo systemctl start supervisor || ((ERROR_COUNT++))
+        sudo systemctl enable supervisor || ((ERROR_COUNT++))
     fi
+    
+    if [ $ERROR_COUNT -gt 0 ]; then
+        echo "❌ Falha ao configurar serviço Supervisor"
+        return 1
+    fi
+
+    # Configurar diretórios de projetos
+    setup_project_directories "$USER" "${PROJETOS[@]}"
     
     # Criar configurações para cada projeto
     echo "🔧 Configurando projetos no Supervisor..."
@@ -624,6 +908,66 @@ EOF
     sudo supervisorctl update
     
     echo "✅ Supervisor configurado com sucesso!"
+}
+
+# Função para configurar diretórios de projetos
+setup_project_directories() {
+    local USER=$1
+    local PROJETOS=("${@:2}")
+    local BASE_DIR="/home/$USER/projects"
+    local WWW_DIR="/var/www/projects"
+    local ERROR_COUNT=0
+
+    echo "📁 Configurando diretórios de projetos..."
+
+    # Verificar se git está instalado
+    if ! command -v git &> /dev/null; then
+        echo "📦 Instalando Git..."
+        sudo apt update && sudo apt install -y git || {
+            echo "❌ Falha ao instalar Git"
+            return 1
+        }
+    fi
+
+    # Criar diretório base em /home/user/projects
+    ensure_dir "$BASE_DIR"
+    sudo chown -R $USER: "$BASE_DIR"
+
+    # Criar diretório em /var/www/projects
+    ensure_dir "$WWW_DIR"
+    sudo chown -R $USER: "$WWW_DIR"
+
+    # Criar diretórios para cada projeto e seus links simbólicos
+    for PROJ in "${PROJETOS[@]}"; do
+        local PROJ_DIR="$BASE_DIR/$PROJ"
+        local WWW_PROJ_DIR="$WWW_DIR/$PROJ"
+        local REPO_URL="${LARAVEL_PROJECTS[$PROJ]}"
+
+        if [ -z "$REPO_URL" ]; then
+            echo "⚠️ URL do repositório não configurada para $PROJ"
+            continue
+        fi
+
+        # Clonar ou atualizar o projeto
+        clone_or_update_project "$PROJ" "$REPO_URL" "$PROJ_DIR" || {
+            ((ERROR_COUNT++))
+            continue
+        }
+
+        # Criar link simbólico se não existir
+        if [ ! -L "$WWW_PROJ_DIR" ]; then
+            echo "🔗 Criando link simbólico para $PROJ..."
+            sudo ln -s "$PROJ_DIR" "$WWW_PROJ_DIR" || ((ERROR_COUNT++))
+        fi
+    done
+
+    if [ $ERROR_COUNT -eq 0 ]; then
+        echo "✅ Diretórios de projetos configurados com sucesso!"
+        return 0
+    else
+        echo "⚠️ Configuração concluída com $ERROR_COUNT erro(s)"
+        return 1
+    fi
 }
 
 # Função para configurar VHost Apache com proxy reverso
@@ -675,6 +1019,51 @@ EOF
     done
 }
 
+# Configuração dos projetos Laravel
+declare -A LARAVEL_PROJECTS=(
+    ["gym-management-system"]="git@github.com:marcelobogas/gym-management-system.git"
+    ["school-management-system"]="git@github.com:marcelobogas/school-management-system.git"
+    ["api"]="git@github.com:marcelobogas/api.git"
+)
+
+# Função para clonar ou atualizar projetos
+clone_or_update_project() {
+    local PROJECT_NAME=$1
+    local REPO_URL=$2
+    local PROJECT_DIR=$3
+    
+    if [ ! -d "$PROJECT_DIR/.git" ]; then
+        echo "📥 Clonando $PROJECT_NAME..."
+        git clone "$REPO_URL" "$PROJECT_DIR" || {
+            echo "❌ Falha ao clonar $PROJECT_NAME"
+            return 1
+        }
+    else
+        echo "🔄 Atualizando $PROJECT_NAME..."
+        (cd "$PROJECT_DIR" && git pull) || {
+            echo "⚠️ Falha ao atualizar $PROJECT_NAME"
+            return 1
+        }
+    fi
+    
+    # Verificar se é um projeto Laravel e instalar dependências
+    if [ -f "$PROJECT_DIR/composer.json" ]; then
+        echo "🔧 Instalando dependências do $PROJECT_NAME..."
+        (cd "$PROJECT_DIR" && composer install --no-interaction) || {
+            echo "⚠️ Falha ao instalar dependências do $PROJECT_NAME"
+            return 1
+        }
+        
+        # Configurar .env se não existir
+        if [ ! -f "$PROJECT_DIR/.env" ] && [ -f "$PROJECT_DIR/.env.example" ]; then
+            cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
+            (cd "$PROJECT_DIR" && php artisan key:generate) || true
+        fi
+    fi
+    
+    return 0
+}
+
 # Função auxiliar para verificar dependências
 check_dependencies() {
     local DEPS=("curl" "wget" "apt-transport-https" "ca-certificates" "software-properties-common")
@@ -695,6 +1084,15 @@ check_dependencies() {
     fi
     
     return 0
+}
+
+# Função auxiliar para verificar se um pacote está instalado
+check_package_installed() {
+    local package="$1"
+    if dpkg -s "$package" &>/dev/null; then
+        return 0
+    fi
+    return 1
 }
 
 # Configuração do ambiente de desenvolvimento completo
